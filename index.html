@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>DeepSeek Chat by 风扇</title>
+<style>
+  :root{
+    --bg:#0F1113;
+    --panel:#191B1E;
+    --muted:#8b949e;
+    --bubble:#242628;
+    --accent:#0066CC;
+    --radius:14px;
+    --safe-bottom: env(safe-area-inset-bottom, 12px);
+    --bottom-height: 76px; /* 基础底部空间, 会在 runtime 动态调整 */
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family: Inter, "Helvetica Neue", Arial, sans-serif;-webkit-font-smoothing:antialiased}
+  .app{display:flex;flex-direction:column;min-height:100vh;gap:0}
+  header{padding:14px 12px;background:var(--panel);border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center}
+  .ai-box{display:flex;flex-direction:column}
+  .ai-title{
+    font-weight:600;font-size:16px;letter-spacing:0.2px;display:flex;align-items:center;
+  }
+  .signature{font-size:12px;color:var(--muted);margin-top:4px}
+  main{flex:1;overflow:auto;padding:16px;padding-bottom:calc(var(--bottom-height) + var(--safe-bottom));display:flex;flex-direction:column;gap:12px}
+  .messages{display:flex;flex-direction:column;gap:12px;align-items:stretch}
+  .msg{max-width:78%;padding:10px 12px;border-radius:12px;font-size:15px;line-height:1.45;word-break:break-word;white-space:pre-wrap;background:var(--bubble)}
+  .msg.user{margin-left:auto;text-align:left}
+  .msg.ai{margin-right:auto;text-align:left}
+  .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+  .nick{font-weight:700;color:#fff;display:flex;align-items:center}
+  /* 打字动画小点点：放在昵称下面 */
+  .typing-dots{display:inline-flex;gap:6px;margin-top:2px}
+  .typing-dots span{width:6px;height:6px;background:var(--muted);border-radius:50%;display:inline-block;animation:blink 1.4s infinite}
+  .typing-dots span:nth-child(2){animation-delay:0.2s}
+  .typing-dots span:nth-child(3){animation-delay:0.4s}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+  /* spacer：确保最后消息不会被固定底部覆盖 */
+  .messages-spacer{height:var(--bottom-height);flex-shrink:0}
+  /* 固定底部，动态调整 bottom 值由脚本控制以适配键盘 */
+  .bottom{position:fixed;left:0;right:0;padding:12px 12px calc(12px + var(--safe-bottom));backdrop-filter: blur(6px);background:var(--panel);border-top:1px solid rgba(255,255,255,0.05);z-index:8;transition:bottom 160ms ease}
+  .composer{display:flex;gap:8px;align-items:center}
+  textarea#input{flex:1;min-height:44px;max-height:240px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;overflow-y:auto;line-height:1.4}
+  .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer}
+  .settings-btn,.clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:8px}
+  /* 弹窗 */
+  .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:10}
+  .modal-content{background:var(--panel);padding:18px;border-radius:var(--radius);width:92%;max-width:520px;box-shadow:0 0 10px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:6px}
+  .modal-content h2{margin:0 0 8px 0;font-size:18px}
+  /* label + input 对齐，所有输入均占满宽度 */
+  .modal-row{display:flex;flex-direction:column;gap:6px;}
+  .modal-content label{color:var(--muted);font-size:13px}
+  .modal-content input[type="text"], .modal-content input[type="search"], .modal-content input[type="password"]{
+    width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;
+  }
+  /* 自定义提示词改为 textarea，用于大段文字，但保持与其它输入对齐 */
+  .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
+  .btn.save{background:var(--accent);color:#fff}
+  .btn.close{background:#333;color:#ccc}
+  /* 微调消息容器滚动平滑 */
+  main, .messages {scroll-behavior: smooth;}
+  @media (max-height:600px){
+    .modal-content{max-height:80vh;overflow:auto}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="ai-box">
+      <div class="ai-title" id="headerTitle">
+        <div id="aiTitleText">和deepseek聊天！</div>
+      </div>
+      <div class="signature" id="signature"></div>
+    </div>
+    <div>
+      <button class="clear-btn" id="clearHistory" title="清除历史">🗑️</button>
+      <button class="settings-btn" id="openSettings" title="设置">⚙️</button>
+    </div>
+  </header>
+  <main>
+    <div class="messages" id="messages"></div>
+  </main>
+  <div class="bottom" id="bottom">
+    <div class="composer">
+      <textarea id="input" placeholder="Enter your text." rows="1" aria-label="消息输入"></textarea>
+      <button id="send" class="send-btn">发送</button>
+    </div>
+  </div>
+</div>
+
+    <!-- 设置弹窗（保留 AI 昵称、个性签名与自定义提示词，并新增 API Key） -->
+<div class="modal" id="settingsModal">
+  <div class="modal-content">
+    <h2>设置</h2>
+    <div class="modal-row">
+      <label for="aiNick">昵称 Name</label>
+      <input id="aiNick" type="text" value="小风" />
+    </div>
+
+    <div class="modal-row">
+      <label for="signatureInput">个签 Introduction</label>
+      <input id="signatureInput" type="text" placeholder="例如：Fly to the sky" />
+    </div>
+
+    <div class="modal-row">
+      <label for="userPrompt">性格 Character</label>
+      <textarea id="userPrompt" placeholder="定义AI的性格、说话方式（在这里重复AI的名字"></textarea>
+    </div>
+
+    <div class="modal-row">
+      <label for="apiKeyInput">API Key（本地保存）</label>
+      <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn close" id="closeSettings">取消</button>
+      <button class="btn save" id="saveSettings">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "https://api.deepseek.com";
+const MODEL = "deepseek-chat";
+const STORAGE_KEY = "deepseek_chat_autosave";
+const SETTINGS_KEY = "deepseek_chat_settings";
+
+const msgsEl = document.getElementById("messages");
+const inputEl = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const aiNickEl = document.getElementById("aiNick");
+const aiTitleTextEl = document.getElementById("aiTitleText");
+const signatureEl = document.getElementById("signature");
+const signatureInputEl = document.getElementById("signatureInput");
+const userPromptEl = document.getElementById("userPrompt");
+const apiKeyEl = document.getElementById("apiKeyInput");
+
+const settingsModal = document.getElementById("settingsModal");
+const openSettingsBtn = document.getElementById("openSettings");
+const closeSettingsBtn = document.getElementById("closeSettings");
+const saveSettingsBtn = document.getElementById("saveSettings");
+const clearHistoryBtn = document.getElementById("clearHistory");
+const bottomEl = document.getElementById("bottom");
+const headerTitle = document.getElementById("headerTitle");
+
+let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+/* ---------- 渲染消息（昵称直接显示，不再显示小竖条） ---------- */
+function renderMessages() {
+  msgsEl.innerHTML = "";
+  for (const m of messages) {
+    if(m.role==="system") continue;
+    const el = document.createElement("div");
+    el.className = "msg " + (m.role === "user" ? "user" : "ai");
+
+    // 仅对 AI 消息显示 meta（昵称 + 打字点）
+    if(m.role === "assistant") {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const nickWrap = document.createElement("div");
+      nickWrap.className = "nick";
+
+      // 文本昵称
+      const nick = document.createElement("span");
+      nick.textContent = aiNickEl.value || "AI";
+
+      nickWrap.appendChild(nick);
+      meta.appendChild(nickWrap);
+
+      // AI 正在打字的状态
+      if(m.content==="_typing"){
+        const dots = document.createElement("div");
+        dots.className = "typing-dots";
+        dots.innerHTML = "<span></span><span></span><span></span>";
+        meta.appendChild(dots);
+        el.appendChild(meta);
+        msgsEl.appendChild(el);
+        continue;
+      }
+      el.appendChild(meta);
+    }
+
+    const content = document.createElement("div");
+    content.textContent = m.content;
+    el.appendChild(content);
+    msgsEl.appendChild(el);
+  }
+
+  // 在消息列表末尾添加 spacer，避免固定底部遮挡最后一条消息
+  const spacer = document.createElement("div");
+  spacer.className = "messages-spacer";
+  msgsEl.appendChild(spacer);
+
+  // 滚动到底部（滚动容器仍为 main 的父元素）
+  const container = msgsEl.parentElement;
+  container.scrollTop = container.scrollHeight;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+}
+
+/* ---------- 消息管理 ---------- */
+function addMessage(role, content){
+  messages.push({role, content});
+  renderMessages();
+}
+
+function getBeijingTime(){
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const bj = new Date(utc + 8*3600*1000);
+  return bj.toLocaleString("zh-CN", {hour12:false});
+}
+
+/* ---------- 获取/存储 设置（包含 API Key） ---------- */
+function loadSettings(){
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  if(s.aiNick) aiNickEl.value = s.aiNick;
+  if(s.signature) signatureInputEl.value = s.signature;
+  if(s.userPrompt) userPromptEl.value = s.userPrompt;
+  if(s.apiKey) apiKeyEl.value = s.apiKey;
+  aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
+  signatureEl.textContent = signatureInputEl.value || "";
+}
+
+function saveSettings(){
+  const settings = {
+    aiNick: aiNickEl.value,
+    signature: signatureInputEl.value,
+    userPrompt: userPromptEl.value,
+    apiKey: apiKeyEl.value
+  };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  headerTitleUpdate();
+}
+
+/* 读取当前保存的 API Key（不打印、不泄露） */
+function getApiKey(){
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  return s.apiKey || "";
+}
+
+/* 更新 header 文本 */
+function headerTitleUpdate(){
+  aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
+  signatureEl.textContent = signatureInputEl.value || "";
+}
+
+/* ---------- 发送并流式接收（保持原逻辑，但使用本地存储的 API Key） ---------- */
+async function sendMessage(){
+  const text = inputEl.value.trim();
+  if(!text) return;
+  inputEl.value = "";
+  inputEl.style.height = "44px"; // 重置高度
+  addMessage("user", text);
+
+  const sysPrompt = `现在是 ${getBeijingTime()}（北京时间）你正在通过网页和用户聊天\n用户提示：${userPromptEl.value||""}`;
+  const apiMessages = [{role:"system", content: sysPrompt}, ...messages];
+
+  // 添加 AI 正在打字的占位气泡
+  addMessage("assistant","_typing");
+  let reply = {role:"assistant", content:""};
+  let replyIndex = messages.length-1; // typing 的位置
+
+  try {
+    const apiKey = getApiKey();
+    if(!apiKey){
+      // 如果没有配置 Key，提示用户并把占位替换为错误内容
+      if(messages[replyIndex].content==="_typing"){
+        messages[replyIndex] = reply;
+      }
+      reply.content += "\n[错误] 请在设置中填写 API Key 后重试。";
+      renderMessages();
+      return;
+    }
+
+    const url = API_BASE + "/v1/chat/completions";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+apiKey
+      },
+      body: JSON.stringify({model: MODEL, messages: apiMessages, stream: true})
+    });
+    if(!res.ok) throw new Error("API 错误 " + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+      for(const part of parts){
+        if(!part.startsWith("data:")) continue;
+        const data = part.slice(5).trim();
+        if(data==="[DONE]") continue;
+        try{
+          const obj = JSON.parse(data);
+          const delta = obj.choices?.[0]?.delta?.content;
+          if(delta){
+            if(messages[replyIndex].content==="_typing"){
+              messages[replyIndex] = reply; // 替换掉 typing 占位
+            }
+            reply.content += delta;
+            renderMessages();
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){
+    if(messages[replyIndex].content==="_typing"){
+      messages[replyIndex] = reply;
+    }
+    reply.content += "\n[错误] " + e.message;
+    renderMessages();
+  }
+}
+
+/* ---------- 弹窗逻辑 ---------- */
+openSettingsBtn.addEventListener("click", ()=>{settingsModal.style.display="flex";});
+closeSettingsBtn.addEventListener("click", ()=>{settingsModal.style.display="none";});
+saveSettingsBtn.addEventListener("click", ()=>{
+  saveSettings();
+  settingsModal.style.display="none";
+  renderMessages();
+});
+
+/* ---------- 清空历史 ---------- */
+clearHistoryBtn.addEventListener("click", ()=>{
+  if(confirm("确定要清空所有聊天记录吗？")){
+    messages = [];
+    localStorage.removeItem(STORAGE_KEY);
+    renderMessages();
+  }
+});
+
+/* ---------- 发送事件 & 输入高度 ---------- */
+sendBtn.addEventListener("click", sendMessage);
+inputEl.addEventListener("keydown", (e)=>{
+  if((e.ctrlKey && e.key==="Enter") || (e.key==="Enter" && !e.shiftKey && !e.ctrlKey)){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+inputEl.addEventListener("input", ()=>{
+  inputEl.style.height = "auto";
+  inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
+});
+
+/* ---------- 视觉视口（VisualViewport）用于处理键盘高度，避免间隙 ---------- */
+const BASE_BOTTOM_HEIGHT = 76; // 与 css :root --bottom-height 基础保持一致
+function updateForViewport(){
+  const vv = window.visualViewport;
+  let kb = 0;
+  if(vv){
+    // 计算键盘高度：窗口内高度（innerHeight）减去 visualViewport.height（受键盘影响）
+    kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+  } else {
+    // fallback: 使用 window.innerHeight 与 document.documentElement.clientHeight 之差（某些浏览器）
+    kb = Math.max(0, window.innerHeight - document.documentElement.clientHeight);
+  }
+  // 设置 bottom 元素底部间距（固定定位），并更新 main 的 padding-bottom（通过 css 变量）
+  bottomEl.style.bottom = (kb > 0 ? kb + 'px' : '0px');
+  document.documentElement.style.setProperty('--bottom-height', `${BASE_BOTTOM_HEIGHT + kb}px`);
+  // 当输入框获取焦点时确保滚动到底部（给移动端时间）
+  setTimeout(()=>{ const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 120);
+}
+
+/* 监听 visualViewport 变化（多数移动端浏览器支持），及 resize */
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', updateForViewport, {passive:true});
+  window.visualViewport.addEventListener('scroll', updateForViewport, {passive:true});
+}
+window.addEventListener('resize', updateForViewport);
+inputEl.addEventListener('focus', ()=>{
+  setTimeout(()=>{ updateForViewport(); const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 250);
+});
+inputEl.addEventListener('blur', ()=>{ setTimeout(updateForViewport, 160); });
+
+/* fallback 保证在 load 时正确设置 */
+window.addEventListener("load", ()=>{
+  loadSettings();
+  headerTitleUpdate();
+  renderMessages();
+  updateForViewport();
+});
+
+/* 兼容：在软键盘弹起后做一次最终滚动 */
+window.addEventListener('orientationchange', ()=> setTimeout(updateForViewport, 300));
+</script>
+</body>
+</html>
