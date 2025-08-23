@@ -203,6 +203,7 @@
   - 注入 highlight.js 进行语法高亮（自动识别）
   - 在渲染后为每个 <pre><code> 注入复制按钮与语言角标（不改变原有渲染逻辑，仅增强）
   - 调整了 pre 的 white-space/overflow 设置，使高亮显示正常，并确保复制到剪贴板的是纯文本代码内容
+  - **变化**：用户（user）气泡改为纯文本渲染（使用 textContent），样式与你提供的示例保持一致；AI 消息仍然使用 markdownToHtml（支持 code block/highlight）
 */
 
 const API_BASE = "https://api.deepseek.com";
@@ -489,8 +490,16 @@ function renderMessages() {
     }
 
     const content = document.createElement("div");
-    // 将消息文本通过 markdownToHtml 渲染（安全）
-    content.innerHTML = markdownToHtml(m.content);
+
+    // === 修改点：如果是用户（user）的消息，作为纯文本渲染（textContent）
+    // 以避免用户气泡被当作 Markdown/HTML 解析，且样式与示例保持一致。
+    if (m.role === "user") {
+      content.textContent = m.content;
+    } else {
+      // AI 消息仍然支持 markdown -> HTML（包含 code block）
+      content.innerHTML = markdownToHtml(m.content);
+    }
+
     el.appendChild(content);
     msgsEl.appendChild(el);
   }
