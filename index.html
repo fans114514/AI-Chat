@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>DeepSeek Chat by 风扇</title>
+
+<!-- highlight.js for client-side syntax highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
 <style>
   :root{
     --bg:#0F1113;
@@ -62,6 +67,75 @@
   .btn.close{background:#333;color:#ccc}
   /* 微调消息容器滚动平滑 */
   main, .messages {scroll-behavior: smooth;}
+
+  /* ======= Markdown & code block styles (调整为更紧凑) ======= */
+  .msg pre {
+    background: #0b0c0d;
+    border-radius:8px;
+    padding:12px;
+    margin:6px 0;
+    overflow:auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
+    font-size:13px;
+    line-height:1.45;
+    border:1px solid rgba(255,255,255,0.04);
+    white-space:pre; /* code 高亮更准确 */
+    word-break:normal;
+    position:relative; /* 为右上角按钮定位 */
+  }
+  .msg code.inline { 
+    background: rgba(255,255,255,0.03);
+    padding:2px 6px;
+    border-radius:6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
+    font-size:13px;
+  }
+
+  /* small adjustments for headings / paragraphs to reduce large gaps */
+  .msg h1, .msg h2, .msg h3, .msg h4 {
+    margin:8px 0 6px;
+    color:#fff;
+  }
+  .msg p{margin:6px 0}
+  .msg ul{margin:6px 0 8px 18px;padding:0}
+  .msg ol{margin:6px 0 8px 18px;padding:0}
+  .msg li{margin:6px 0}
+  .msg blockquote{
+    margin:6px 0;padding:8px 12px;border-left:3px solid rgba(255,255,255,0.06);
+    color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px;
+  }
+  .msg a{color:var(--accent);text-decoration:none}
+  .msg a:hover{text-decoration:underline}
+
+  /* copy button (半透明圆角灰色) */
+  .code-controls {
+    position:absolute;
+    top:8px;
+    right:8px;
+    display:flex;
+    gap:6px;
+    align-items:center;
+    z-index:5;
+  }
+  .copy-btn {
+    background: rgba(255,255,255,0.06);
+    color: #e6eef6;
+    border: none;
+    padding:6px 8px;
+    border-radius:8px;
+    font-size:12px;
+    cursor:pointer;
+    backdrop-filter: blur(4px);
+  }
+  .copy-btn:active { transform: translateY(1px); }
+  .lang-badge {
+    background: rgba(255,255,255,0.03);
+    color: var(--muted);
+    padding:4px 6px;
+    border-radius:8px;
+    font-size:11px;
+  }
+
   @media (max-height:600px){
     .modal-content{max-height:80vh;overflow:auto}
   }
@@ -124,6 +198,13 @@
 </div>
 
 <script>
+/*
+  改动说明：
+  - 注入 highlight.js 进行语法高亮（自动识别）
+  - 在渲染后为每个 <pre><code> 注入复制按钮与语言角标（不改变原有渲染逻辑，仅增强）
+  - 调整了 pre 的 white-space/overflow 设置，使高亮显示正常，并确保复制到剪贴板的是纯文本代码内容
+*/
+
 const API_BASE = "https://api.deepseek.com";
 const MODEL = "deepseek-chat";
 const STORAGE_KEY = "deepseek_chat_autosave";
@@ -149,7 +230,230 @@ const headerTitle = document.getElementById("headerTitle");
 
 let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 
-/* ---------- 渲染消息（昵称直接显示，不再显示小竖条） ---------- */
+/* ------------------ Markdown helpers (安全、轻量、改进) ------------------ */
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 提取代码块（支持未闭合的起始 ```：把剩余当 code 内容）
+ * 返回 {text: replacedText, codeBlocks: [...]}
+ */
+function extractCodeBlocksRaw(text){
+  const codeBlocks = [];
+  let out = "";
+  let pos = 0;
+  while(true){
+    const start = text.indexOf("```", pos);
+    if(start === -1){
+      out += text.slice(pos);
+      break;
+    }
+    // append before fence
+    out += text.slice(pos, start);
+    // find matching end
+    const end = text.indexOf("```", start + 3);
+    const between = (end === -1) ? text.slice(start + 3) : text.slice(start + 3, end);
+    // detect optional language on first line
+    const m = between.match(/^([^\n]*)\n([\s\S]*)$/);
+    let lang = "", code = "";
+    if(m){
+      lang = m[1].trim();
+      code = m[2];
+    } else {
+      // 没有明确的语言行，把整个 between 视为 code 内容（可能包括 single-line code）
+      lang = "";
+      code = between;
+    }
+    const idx = codeBlocks.length;
+    codeBlocks.push({lang, code});
+    out += `@@CODEBLOCK_${idx}@@`;
+    if(end === -1){
+      // 未闭合，已经消费到文本末尾，退出
+      pos = text.length;
+      break;
+    } else {
+      pos = end + 3;
+      continue;
+    }
+  }
+  return {text: out, codeBlocks};
+}
+
+/**
+ * 将简易 Markdown 转为安全的 HTML（支持代码块、行内代码、粗体、斜体、标题、列表、链接、引用）
+ * - 先抽取代码块占位，防止被转义或误解析
+ * - 将连续的普通文本合并为段落（更紧凑）
+ */
+function markdownToHtml(input){
+  if(input === null || input === undefined) return "";
+
+  // 标准化换行
+  let text = String(input).replace(/\r\n/g, "\n");
+
+  // 抽取代码块（支持未闭合）
+  const extracted = extractCodeBlocksRaw(text);
+  text = extracted.text;
+  const codeBlocks = extracted.codeBlocks;
+
+  // 分行处理（合并连续行到一个 <p>）
+  const lines = text.split("\n");
+  const outParts = [];
+  let paragraph = null;
+  let inUl = false, inOl = false;
+
+  function flushParagraph(){
+    if(paragraph !== null){
+      outParts.push(`<p>${paragraph}</p>`);
+      paragraph = null;
+    }
+  }
+
+  for(let i = 0; i < lines.length; i++){
+    let line = lines[i];
+
+    // heading
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if(headingMatch){
+      flushParagraph();
+      if(inUl){ outParts.push("</ul>"); inUl = false; }
+      if(inOl){ outParts.push("</ol>"); inOl = false; }
+      const level = headingMatch[1].length;
+      outParts.push(`<h${level}>${inlineFormatting(escapeHtml(headingMatch[2]))}</h${level}>`);
+      continue;
+    }
+
+    // blockquote
+    if(line.trim().startsWith(">")){
+      flushParagraph();
+      if(inUl){ outParts.push("</ul>"); inUl = false; }
+      if(inOl){ outParts.push("</ol>"); inOl = false; }
+      const inner = line.replace(/^\s*>\s?/, "");
+      outParts.push(`<blockquote>${inlineFormatting(escapeHtml(inner))}</blockquote>`);
+      continue;
+    }
+
+    // unordered list
+    const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+    if(ulMatch){
+      flushParagraph();
+      if(inOl){ outParts.push("</ol>"); inOl = false; }
+      if(!inUl){
+        outParts.push("<ul>");
+        inUl = true;
+      }
+      outParts.push(`<li>${inlineFormatting(escapeHtml(ulMatch[1]))}</li>`);
+      continue;
+    } else if(inUl && line.trim() === ""){
+      outParts.push("</ul>");
+      inUl = false;
+      continue;
+    }
+
+    // ordered list
+    const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+    if(olMatch){
+      flushParagraph();
+      if(inUl){ outParts.push("</ul>"); inUl = false; }
+      if(!inOl){
+        outParts.push("<ol>");
+        inOl = true;
+      }
+      outParts.push(`<li>${inlineFormatting(escapeHtml(olMatch[1]))}</li>`);
+      continue;
+    } else if(inOl && line.trim() === ""){
+      outParts.push("</ol>");
+      inOl = false;
+      continue;
+    }
+
+    // 空行 -> 段落分隔
+    if(line.trim() === ""){
+      flushParagraph();
+      continue;
+    }
+
+    // 普通文本行：合并到当前 paragraph
+    const formatted = inlineFormatting(escapeHtml(line.trim()));
+    if(paragraph === null){
+      paragraph = formatted;
+    } else {
+      // 使用空格分隔原始行，保留更紧凑的视觉效果
+      paragraph += " " + formatted;
+    }
+  }
+
+  flushParagraph();
+  if(inUl) outParts.push("</ul>");
+  if(inOl) outParts.push("</ol>");
+
+  let html = outParts.join("\n");
+
+  // 恢复代码块占位（并对代码内容做 escapeHtml）
+  html = html.replace(/@@CODEBLOCK_(\d+)@@/g, (m, idx) => {
+    const cb = codeBlocks[Number(idx)];
+    if(!cb) return "";
+    const escapedCode = escapeHtml(cb.code);
+    const langClass = cb.lang ? ` class="language-${escapeHtml(cb.lang)}"` : "";
+    // 给 code 元素加上 inline class 名称（highlight.js 可自动检测），并保留 language- 前缀给角标使用
+    return `<pre><code${langClass}>${escapedCode}</code></pre>`;
+  });
+
+  return html;
+}
+
+/**
+ * 行内格式（作用在已 escape 的文本）
+ * 支持：
+ *  - 行内代码 `code`
+ *  - 粗体 **text**
+ *  - 斜体 *text*
+ *  - 链接 [text](url)
+ *
+ * 注意：假定输入已 escapeHtml 过
+ */
+function inlineFormatting(escapedText){
+  if(!escapedText) return "";
+
+  // 行内代码先占位
+  const codePlaceholders = [];
+  escapedText = escapedText.replace(/`([^`]+)`/g, (m, code) => {
+    const idx = codePlaceholders.length;
+    codePlaceholders.push(code);
+    return `@@INLINECODE_${idx}@@`;
+  });
+
+  // 链接 [text](url)
+  escapedText = escapedText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text, url) => {
+    const safeText = text; // 已 escapeHtml
+    const safeUrl = (/^(https?:\/\/|mailto:)/i.test(url) ? escapeHtml(url) : "#");
+    return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeText}</a>`;
+  });
+
+  // 粗体 **text**
+  escapedText = escapedText.replace(/\*\*(.+?)\*\*/g, (m, t) => `<strong>${t}</strong>`);
+
+  // 斜体 *text* （避免与 ** 冲突）
+  escapedText = escapedText.replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, (m, a, t, b) => {
+    const left = a;
+    const right = b;
+    return `${left}<em>${t}</em>${right}`;
+  });
+
+  // 恢复行内代码
+  escapedText = escapedText.replace(/@@INLINECODE_(\d+)@@/g, (m, idx) => {
+    const code = codePlaceholders[Number(idx)];
+    return `<code class="inline">${code}</code>`;
+  });
+
+  return escapedText;
+}
+
+/* ------------------ 渲染消息（使用 Markdown 渲染） ------------------ */
 function renderMessages() {
   msgsEl.innerHTML = "";
   for (const m of messages) {
@@ -185,7 +489,8 @@ function renderMessages() {
     }
 
     const content = document.createElement("div");
-    content.textContent = m.content;
+    // 将消息文本通过 markdownToHtml 渲染（安全）
+    content.innerHTML = markdownToHtml(m.content);
     el.appendChild(content);
     msgsEl.appendChild(el);
   }
@@ -195,10 +500,96 @@ function renderMessages() {
   spacer.className = "messages-spacer";
   msgsEl.appendChild(spacer);
 
-  // 滚动到底部（滚动容器仍为 main 的父元素）
+  // 滚动到底部
   const container = msgsEl.parentElement;
   container.scrollTop = container.scrollHeight;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+
+  // 增强：对所有 code block 注入复制按钮并执行高亮
+  enhanceCodeBlocks();
+}
+
+/* ---------- 为 code blocks 注入复制按钮与语言角标，并执行 highlight ---------- */
+function enhanceCodeBlocks(){
+  // highlight.js 全局函数 hljs 可用（通过 CDN 引入）
+  // 1. 找到所有 <pre><code>
+  const pres = msgsEl.querySelectorAll("pre");
+  pres.forEach(pre => {
+    // 防止重复注入
+    if(pre.dataset.enhanced === "1") return;
+    pre.dataset.enhanced = "1";
+
+    const codeEl = pre.querySelector("code");
+    if(!codeEl) return;
+
+    // 语言角标：从 class name 提取 language-xxx 或者尝试 hljs 自动检测
+    let langLabel = "";
+    const classList = Array.from(codeEl.classList || []);
+    const langCls = classList.find(c => /^language-/.test(c) || /^hljs-/.test(c));
+    if(langCls){
+      langLabel = langCls.replace(/^language-/, "").replace(/^hljs-/, "");
+    } else {
+      // 尝试自动检测（hljs.getLanguage）
+      try {
+        const detected = hljs.highlightAuto(codeEl.textContent || "");
+        if(detected && detected.language) langLabel = detected.language;
+      } catch(e){}
+    }
+
+    // 创建右上角容器（语言角标 + 复制按钮）
+    const controls = document.createElement("div");
+    controls.className = "code-controls";
+
+    // language badge
+    if(langLabel){
+      const lb = document.createElement("div");
+      lb.className = "lang-badge";
+      lb.textContent = langLabel;
+      controls.appendChild(lb);
+    }
+
+    // copy button
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.type = "button";
+    copyBtn.title = "复制代码";
+    copyBtn.textContent = "Copy";
+    controls.appendChild(copyBtn);
+
+    pre.appendChild(controls);
+
+    // copy action
+    copyBtn.addEventListener("click", async () => {
+      const codeText = codeEl.textContent || "";
+      try{
+        await navigator.clipboard.writeText(codeText);
+        const original = copyBtn.textContent;
+        copyBtn.textContent = "已复制";
+        setTimeout(()=> copyBtn.textContent = original, 1200);
+      }catch(e){
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = codeText;
+        document.body.appendChild(ta);
+        ta.select();
+        try{
+          document.execCommand('copy');
+          const original = copyBtn.textContent;
+          copyBtn.textContent = "已复制";
+          setTimeout(()=> copyBtn.textContent = original, 1200);
+        }catch(err){
+          alert("复制失败，请手动复制代码");
+        } finally {
+          document.body.removeChild(ta);
+        }
+      }
+    });
+
+    // 让 highlight.js 高亮（如果 library 加载完会工作）
+    try{
+      hljs.highlightElement(codeEl);
+    }catch(e){}
+  });
 }
 
 /* ---------- 消息管理 ---------- */
@@ -306,6 +697,7 @@ async function sendMessage(){
             if(messages[replyIndex].content==="_typing"){
               messages[replyIndex] = reply; // 替换掉 typing 占位
             }
+            // 关键：把 delta 累加到 reply.content（流式）
             reply.content += delta;
             renderMessages();
           }
@@ -347,7 +739,7 @@ inputEl.addEventListener("keydown", (e)=>{
     sendMessage();
   }
 });
-inputEl.addEventListener("input", ()=>{
+inputEl.addEventListener('input', ()=>{
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
 });
