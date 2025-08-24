@@ -355,7 +355,7 @@ function extractCodeBlocksRaw(text){
 }
 
 /**
- * 将简易 Markdown 转为安全的 HTML（支持代码块、行内代码、粗体、斜体、标题、列表、链接、引用）
+ * 将简易 Markdown 转为安全的 HTML（支持代码块、行内代码、粗体、斜体、标题、列表、链接、引用、表格）
  * - 先抽取代码块占位，防止被转义或误解析
  * - 将连续的普通文本合并为段落（更紧凑）
  */
@@ -395,6 +395,67 @@ function markdownToHtml(input){
       const level = headingMatch[1].length;
       outParts.push(`<h${level}>${inlineFormatting(escapeHtml(headingMatch[2]))}</h${level}>`);
       continue;
+    }
+
+    // table detection (支持 Markdown 风格表格：| a | b |, 下一行是 --- | --- |)
+    // 需要当前行包含 '|' 且下一行是分隔线
+    if(line.indexOf('|') !== -1 && i + 1 < lines.length){
+      const sepLine = lines[i+1];
+      // 简单检测分隔行：由 - : 或空白 和 | 组成，至少一个竖线
+      const sepMatch = sepLine.match(/^\s*\|?\s*(:?-+:?\s*)(\|\s*:?-+:?\s*)+\|?\s*$/);
+      if(sepMatch){
+        flushParagraph();
+        if(inUl){ outParts.push("</ul>"); inUl = false; }
+        if(inOl){ outParts.push("</ol>"); inOl = false; }
+
+        // 解析表头
+        function splitRow(row){
+          // 保持单元格顺序；允许行首/行尾无 | 的情况
+          const parts = row.split('|').map(s => s.trim());
+          // 如果首尾有空项（因为两侧有 |），去除空的第一或最后项
+          if(parts.length > 0 && parts[0] === "") parts.shift();
+          if(parts.length > 0 && parts[parts.length-1] === "") parts.pop();
+          return parts;
+        }
+        const headerCells = splitRow(line);
+        // 开始收集 body 行，从 i+2 开始，直到遇到空行或不包含 '|'
+        const bodyRows = [];
+        let j = i + 2;
+        for(; j < lines.length; j++){
+          const r = lines[j];
+          if(r.trim() === "") break;
+          // 当行不含 '|' 或看起来不是表格（避免把普通含竖线文本误判），停止
+          if(r.indexOf('|') === -1) break;
+          bodyRows.push(splitRow(r));
+        }
+
+        // 构建 HTML table（注意：单元格内容需要 escape 并做行内格式处理）
+        let tableHtml = "<table>";
+        // thead
+        tableHtml += "<thead><tr>";
+        for(const hc of headerCells){
+          tableHtml += `<th>${inlineFormatting(escapeHtml(hc))}</th>`;
+        }
+        tableHtml += "</tr></thead>";
+        // tbody
+        if(bodyRows.length){
+          tableHtml += "<tbody>";
+          for(const brow of bodyRows){
+            tableHtml += "<tr>";
+            for(const cell of brow){
+              tableHtml += `<td>${inlineFormatting(escapeHtml(cell))}</td>`;
+            }
+            tableHtml += "</tr>";
+          }
+          tableHtml += "</tbody>";
+        }
+        tableHtml += "</table>";
+        outParts.push(tableHtml);
+
+        // advance i 到最后处理的行（j-1 是最后表格行）
+        i = j - 1;
+        continue;
+      }
     }
 
     // blockquote
@@ -954,8 +1015,14 @@ clearHistoryBtn.addEventListener("click", ()=>{
 
 /* ---------- 发送事件 & 输入高度 & collapsed 行为 ---------- */
 sendBtn.addEventListener("click", sendMessage);
+
+/* === 关键修改：回车行为调整 ===
+   - 原先：按 Enter 直接发送（Shift+Enter 换行）
+   - 现在：按 Enter 插入换行（与常见编辑器一致）
+            发送改为 Ctrl+Enter 或 Cmd+Enter（兼容 Mac）
+*/
 inputEl.addEventListener("keydown", (e)=>{
-  if((e.ctrlKey && e.key==="Enter") || (e.key==="Enter" && !e.shiftKey && !e.ctrlKey)){
+  if((e.key === "Enter") && (e.ctrlKey || e.metaKey)){
     e.preventDefault();
     sendMessage();
     // keep expanded after sending
