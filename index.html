@@ -46,7 +46,7 @@
   /* 固定底部，动态调整 bottom 值由脚本控制以适配键盘 */
   .bottom{position:fixed;left:0;right:0;padding:12px 12px calc(12px + var(--safe-bottom));backdrop-filter: blur(6px);background:var(--panel);border-top:1px solid rgba(255,255,255,0.05);z-index:8;transition:bottom 160ms ease}
   .composer{display:flex;gap:8px;align-items:center}
-  textarea#input{flex:1;min-height:44px;max-height:240px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;overflow-y:auto;line-height:1.4}
+  textarea#input{flex:1;min-height:44px;max-height:240px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;overflow-y:auto;line-height:1.4;transition:width 160ms ease,height 160ms ease,padding 160ms ease}
   .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer}
   .settings-btn,.clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:8px}
   /* 弹窗 */
@@ -63,7 +63,7 @@
   .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
-  .btn.save{background:var(--accent);color:#fff}
+  .btn.save{Background:var(--accent);color:#fff}
   .btn.close{background:#333;color:#ccc}
   /* 微调消息容器滚动平滑 */
   main, .messages {scroll-behavior: smooth;}
@@ -83,7 +83,7 @@
     word-break:normal;
     position:relative; /* 为右上角按钮定位 */
   }
-  .msg code.inline { 
+  .msg code.inline {
     background: rgba(255,255,255,0.03);
     padding:2px 6px;
     border-radius:6px;
@@ -139,6 +139,62 @@
   @media (max-height:600px){
     .modal-content{max-height:80vh;overflow:auto}
   }
+
+  /* ====== 思维链 (reasoning) 样式 ====== */
+  .reasoning-box {
+    margin-top:8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.03);
+    padding:10px;
+    border-radius:10px;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.45;
+    /* 确保展开时没有阴影 */
+    box-shadow: none;
+  }
+  .reasoning-toggle {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    margin-top:8px;
+  }
+  .reasoning-toggle button {
+    background: transparent;
+    color: var(--muted);
+    border:1px solid rgba(255,255,255,0.04);
+    padding:6px 8px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:12px;
+  }
+  .reason-label { font-size:12px;color:var(--muted); }
+  /* 折叠状态：完全隐藏（不显示预览、不加渐变） */
+  .reasoning-collapsed {
+    display: none;
+  }
+
+  /* 输入框 collapsed 状态（未聚焦） */
+  textarea.collapsed {
+    width: 160px; /* 收起时较窄，和发送按钮在一行对齐，视觉更简洁 */
+    padding-top:8px;
+    padding-bottom:8px;
+    height:44px;
+  }
+  /* 聚焦时恢复 flex:1 */
+  textarea.expanded {
+    width: auto;
+    flex:1;
+  }
+  /* small device tweak: 收起宽度不要太窄 */
+  @media (max-width:420px){
+    textarea.collapsed { width: 120px; }
+  }
+
+  /* Toggle 行内样式（用类代替内联样式，保证与上一个选项的垂直间距由 .modal-row 控制） */
+  .toggle-row{display:flex;align-items:center;gap:10px;}
+  .toggle-desc{color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
@@ -166,7 +222,7 @@
   </div>
 </div>
 
-    <!-- 设置弹窗（保留 AI 昵称、个性签名与自定义提示词，并新增 API Key） -->
+    <!-- 设置弹窗（保留 AI 昵称、个性签名与自定义提示词，并新增 API Key 与思考开关） -->
 <div class="modal" id="settingsModal">
   <div class="modal-content">
     <h2>设置</h2>
@@ -190,6 +246,22 @@
       <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
     </div>
 
+    <div class="modal-row">
+      <label for="reasoningToggle">深度思考</label>
+      <div class="toggle-row">
+        <input id="reasoningToggle" type="checkbox" />
+        <div class="toggle-desc">开启后将深度思考</div>
+      </div>
+    </div>
+
+    <!-- 新增项：默认折叠思维链 -->
+    <div class="modal-row">
+      <div class="toggle-row">
+        <input id="defaultReasonCollapsedToggle" type="checkbox" />
+        <div class="toggle-desc">开启后将默认不展示思维链</div>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn close" id="closeSettings">取消</button>
       <button class="btn save" id="saveSettings">保存</button>
@@ -198,16 +270,10 @@
 </div>
 
 <script>
-/*
-  改动说明：
-  - 注入 highlight.js 进行语法高亮（自动识别）
-  - 在渲染后为每个 <pre><code> 注入复制按钮与语言角标（不改变原有渲染逻辑，仅增强）
-  - 调整了 pre 的 white-space/overflow 设置，使高亮显示正常，并确保复制到剪贴板的是纯文本代码内容
-  - **变化**：用户（user）气泡改为纯文本渲染（使用 textContent），样式与你提供的示例保持一致；AI 消息仍然使用 markdownToHtml（支持 code block/highlight）
-*/
 
 const API_BASE = "https://api.deepseek.com";
-const MODEL = "deepseek-chat";
+const MODEL_CHAT = "deepseek-chat";
+const MODEL_REASONER = "deepseek-reasoner";
 const STORAGE_KEY = "deepseek_chat_autosave";
 const SETTINGS_KEY = "deepseek_chat_settings";
 
@@ -220,6 +286,9 @@ const signatureEl = document.getElementById("signature");
 const signatureInputEl = document.getElementById("signatureInput");
 const userPromptEl = document.getElementById("userPrompt");
 const apiKeyEl = document.getElementById("apiKeyInput");
+const reasoningToggleEl = document.getElementById("reasoningToggle");
+// 新增的默认折叠开关元素
+const defaultReasonCollapsedToggleEl = document.getElementById("defaultReasonCollapsedToggle");
 
 const settingsModal = document.getElementById("settingsModal");
 const openSettingsBtn = document.getElementById("openSettings");
@@ -462,7 +531,7 @@ function renderMessages() {
     const el = document.createElement("div");
     el.className = "msg " + (m.role === "user" ? "user" : "ai");
 
-    // 仅对 AI 消息显示 meta（昵称 + 打字点）
+    // 为 AI 消息显示 meta（昵称 + 打字点）
     if(m.role === "assistant") {
       const meta = document.createElement("div");
       meta.className = "meta";
@@ -492,15 +561,56 @@ function renderMessages() {
     const content = document.createElement("div");
 
     // === 修改点：如果是用户（user）的消息，作为纯文本渲染（textContent）
-    // 以避免用户气泡被当作 Markdown/HTML 解析，且样式与示例保持一致。
     if (m.role === "user") {
       content.textContent = m.content;
+      el.appendChild(content);
     } else {
       // AI 消息仍然支持 markdown -> HTML（包含 code block）
-      content.innerHTML = markdownToHtml(m.content);
+      // 但我们需要把 reasoning（思维链）单独作为折叠面板渲染
+      content.innerHTML = markdownToHtml(m.content || "");
+      el.appendChild(content);
+
+      // 如果有 reasoning 字段，则渲染折叠区域
+      if(m.reasoning){
+        // container for toggle + collapsed reasoning
+        const toggleWrap = document.createElement("div");
+        toggleWrap.className = "reasoning-toggle";
+
+        const label = document.createElement("div");
+        label.className = "reason-label";
+        label.textContent = "深度思考 Reasoning";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = m.reasonCollapsed ? "展开思维链" : "收起思考链";
+        btn.addEventListener("click", ()=>{
+          m.reasonCollapsed = !m.reasonCollapsed;
+          // 保存到 storage
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+          renderMessages();
+        });
+
+        toggleWrap.appendChild(label);
+        toggleWrap.appendChild(btn);
+        el.appendChild(toggleWrap);
+
+        // reasoning content box
+        const rbox = document.createElement("div");
+        rbox.className = "reasoning-box";
+
+        if(m.reasonCollapsed){
+          // 折叠后：完全隐藏（不渲染预览、不显示渐变）
+          rbox.style.display = "none";
+        } else {
+          // fully expanded: render reasoning content (确保没有阴影)
+          rbox.style.display = "";
+          rbox.style.boxShadow = "none";
+          rbox.innerHTML = markdownToHtml(m.reasoning || "");
+        }
+        el.appendChild(rbox);
+      }
     }
 
-    el.appendChild(content);
     msgsEl.appendChild(el);
   }
 
@@ -602,8 +712,19 @@ function enhanceCodeBlocks(){
 }
 
 /* ---------- 消息管理 ---------- */
-function addMessage(role, content){
-  messages.push({role, content});
+function addMessage(role, content, extra = {}) {
+  // extra 可以包含 reasoning, reasonCollapsed, id
+  const msg = Object.assign({role, content}, extra);
+  // ensure id
+  if(!msg.id) msg.id = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+
+  // **关键改动**：如果是 assistant 且未显式设置 reasonCollapsed，默认使用设置（仅当“深度思考”模式被启用时才应用该默认折叠设定）
+  if(msg.role === "assistant" && typeof msg.reasonCollapsed === "undefined"){
+    // 只有在 reasoner 模式开启时，才把默认折叠设置应用于 assistant 消息（避免影响普通聊天模型）
+    msg.reasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed()) ? true : false;
+  }
+
+  messages.push(msg);
   renderMessages();
 }
 
@@ -614,13 +735,16 @@ function getBeijingTime(){
   return bj.toLocaleString("zh-CN", {hour12:false});
 }
 
-/* ---------- 获取/存储 设置（包含 API Key） ---------- */
+/* ---------- 获取/存储 设置（包含 API Key & reasoning 开关） ---------- */
 function loadSettings(){
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   if(s.aiNick) aiNickEl.value = s.aiNick;
   if(s.signature) signatureInputEl.value = s.signature;
   if(s.userPrompt) userPromptEl.value = s.userPrompt;
   if(s.apiKey) apiKeyEl.value = s.apiKey;
+  if(typeof s.reasoningEnabled !== "undefined") reasoningToggleEl.checked = !!s.reasoningEnabled;
+  // 新增：读取默认折叠思维链开关
+  if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
   signatureEl.textContent = signatureInputEl.value || "";
 }
@@ -630,7 +754,10 @@ function saveSettings(){
     aiNick: aiNickEl.value,
     signature: signatureInputEl.value,
     userPrompt: userPromptEl.value,
-    apiKey: apiKeyEl.value
+    apiKey: apiKeyEl.value,
+    reasoningEnabled: reasoningToggleEl.checked,
+    // 新增：保存默认折叠思维链开关
+    defaultReasonCollapsed: defaultReasonCollapsedToggleEl.checked
   };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   headerTitleUpdate();
@@ -641,89 +768,174 @@ function getApiKey(){
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   return s.apiKey || "";
 }
+function isReasoningEnabled(){
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  return !!s.reasoningEnabled;
+}
+// 新增：判断“默认折叠思维链”是否开启
+function isDefaultReasonCollapsed(){
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  return !!s.defaultReasonCollapsed;
+}
 
-/* 更新 header 文本 */
 function headerTitleUpdate(){
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
   signatureEl.textContent = signatureInputEl.value || "";
 }
 
-/* ---------- 发送并流式接收（保持原逻辑，但使用本地存储的 API Key） ---------- */
+/* ---------- 发送并流式接收（保持原逻辑，但使用本地存储的 API Key，并支持 reasoning） ---------- */
 async function sendMessage(){
   const text = inputEl.value.trim();
   if(!text) return;
   inputEl.value = "";
   inputEl.style.height = "44px"; // 重置高度
+  // add user message
   addMessage("user", text);
 
   const sysPrompt = `现在是 ${getBeijingTime()}（北京时间）你正在通过网页和用户聊天\n用户提示：${userPromptEl.value||""}`;
-  const apiMessages = [{role:"system", content: sysPrompt}, ...messages];
+  // build messages for API: include system + conversation (only role/content)
+  const apiMessages = [{role:"system", content: sysPrompt}];
+  for(const m of messages){
+    // filter out assistant typing placeholder
+    if(m.role==="assistant" && m.content==="_typing") continue;
+    if(m.role === "assistant" || m.role === "user"){
+      apiMessages.push({role:m.role, content:m.content});
+    }
+  }
 
-  // 添加 AI 正在打字的占位气泡
-  addMessage("assistant","_typing");
-  let reply = {role:"assistant", content:""};
-  let replyIndex = messages.length-1; // typing 的位置
+  // 添加 AI 正在打字的占位气泡（包含 id）
+  const placeholderId = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+  // **关键改动**：占位符的 reasonCollapsed 应依据设置（仅在 deep-reasoner 模式启用时应用默认折叠）
+  const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed()) ? true : false;
+  addMessage("assistant","_typing",{id:placeholderId, reasoning: null, reasonCollapsed: placeholderReasonCollapsed});
+  let replyMessageIndex = messages.findIndex(mm => mm.id === placeholderId);
+  if(replyMessageIndex === -1) replyMessageIndex = messages.length - 1;
 
   try {
     const apiKey = getApiKey();
     if(!apiKey){
       // 如果没有配置 Key，提示用户并把占位替换为错误内容
-      if(messages[replyIndex].content==="_typing"){
-        messages[replyIndex] = reply;
-      }
-      reply.content += "\n[错误] 请在设置中填写 API Key 后重试。";
+      const reply = {role:"assistant", content: "\n[错误] 请在设置中填写 API Key 后重试。", reasoning:null, reasonCollapsed:false, id:placeholderId};
+      messages[replyMessageIndex] = reply;
       renderMessages();
       return;
     }
 
-    const url = API_BASE + "/v1/chat/completions";
+    // 根据设置选择模型
+    const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
+    const url = API_BASE + "/chat/completions"; // note: example shows /chat/completions; original used /v1/chat/completions — both might be valid; keep as /chat/completions per provided example
+    // Use stream: true to keep previous behavior (but gracefully handle non-stream)
+    const useStream = true;
+    const bodyObj = {model: modelToUse, messages: apiMessages, stream: useStream};
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type":"application/json",
         "Authorization":"Bearer "+apiKey
       },
-      body: JSON.stringify({model: MODEL, messages: apiMessages, stream: true})
+      body: JSON.stringify(bodyObj)
     });
-    if(!res.ok) throw new Error("API 错误 " + res.status);
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    while(true){
-      const {done, value} = await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value, {stream:true});
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop();
-      for(const part of parts){
-        if(!part.startsWith("data:")) continue;
-        const data = part.slice(5).trim();
-        if(data==="[DONE]") continue;
-        try{
-          const obj = JSON.parse(data);
-          const delta = obj.choices?.[0]?.delta?.content;
-          if(delta){
-            if(messages[replyIndex].content==="_typing"){
-              messages[replyIndex] = reply; // 替换掉 typing 占位
-            }
-            // 关键：把 delta 累加到 reply.content（流式）
-            reply.content += delta;
-            renderMessages();
-          }
-        }catch(e){}
+
+    if(!res.ok){
+      // Try to parse error body for details
+      let errText = `API 错误 ${res.status}`;
+      try{ const errJson = await res.json(); if(errJson.error && errJson.error.message) errText += ": "+errJson.error.message;}catch(e){}
+      throw new Error(errText);
+    }
+
+    if(useStream && res.body){
+      // 流式处理（保留原来的流式合并逻辑），并尝试捕获 reasoning_content 字段
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      // ensure the placeholder is an object we can update
+      if(messages[replyMessageIndex].content==="_typing"){
+        messages[replyMessageIndex] = {role:"assistant", content:"", reasoning:null, reasonCollapsed: placeholderReasonCollapsed, id:placeholderId};
       }
+      let reply = messages[replyMessageIndex];
+      while(true){
+        const {done, value} = await reader.read();
+        if(done) break;
+        buffer += decoder.decode(value, {stream:true});
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for(const part of parts){
+          if(!part.startsWith("data:")) continue;
+          const data = part.slice(5).trim();
+          if(!data) continue;
+          if(data==="[DONE]") continue;
+          try{
+            const obj = JSON.parse(data);
+            // streaming delta may contain delta.content or delta.reasoning_content
+            const delta = obj.choices?.[0]?.delta || {};
+            if(delta.content){
+              reply.content += delta.content;
+              messages[replyMessageIndex] = reply;
+              renderMessages();
+            }
+            if(delta.reasoning_content){
+              // accumulate reasoning chunks in reply.reasoning
+              reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
+              messages[replyMessageIndex] = reply;
+              renderMessages();
+            }
+            // Some servers stream top-level message pieces differently; if final chunk contains 'message' with both fields:
+            const finishMessage = obj.choices?.[0]?.message;
+            if(finishMessage){
+              if(finishMessage.content) reply.content += finishMessage.content;
+              if(finishMessage.reasoning_content) reply.reasoning = (reply.reasoning || "") + finishMessage.reasoning_content;
+              messages[replyMessageIndex] = reply;
+              renderMessages();
+            }
+          }catch(e){
+            // ignore malformed chunk
+          }
+        }
+      }
+      // 流结束后确保把最终数据写回并保存
+      messages[replyMessageIndex] = reply;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      renderMessages();
+    } else {
+      // 非流式：直接 parse JSON
+      const j = await res.json();
+      // try to extract assistant message
+      const choice = j.choices && j.choices[0];
+      let assistantText = "";
+      let reasoningText = null;
+      if(choice){
+        // some APIs use choice.message.content
+        if(choice.message && typeof choice.message.content === "string"){
+          assistantText = choice.message.content;
+        } else if(choice.text){ // fallback
+          assistantText = choice.text;
+        }
+        // reasoning content may be in message.reasoning_content or in other fields
+        if(choice.message && typeof choice.message.reasoning_content === "string"){
+          reasoningText = choice.message.reasoning_content;
+        } else if(choice.reasoning_content){
+          reasoningText = choice.reasoning_content;
+        }
+      }
+      // Replace placeholder with final reply
+      // **关键改动**：如果存在 reasoningText，则根据“默认折叠思维链”设置决定 reasonCollapsed
+      const reply = {role:"assistant", content: assistantText || "[空回复]", reasoning: reasoningText, reasonCollapsed: (reasoningText ? isDefaultReasonCollapsed() : false), id:placeholderId};
+      messages[replyMessageIndex] = reply;
+      renderMessages();
     }
   }catch(e){
-    if(messages[replyIndex].content==="_typing"){
-      messages[replyIndex] = reply;
-    }
-    reply.content += "\n[错误] " + e.message;
+    // error handling: replace typing placeholder with error message
+    const errMsg = {role:"assistant", content: "\n[错误] " + e.message, reasoning:null, reasonCollapsed:false, id:placeholderId};
+    messages[replyMessageIndex] = errMsg;
     renderMessages();
   }
 }
 
 /* ---------- 弹窗逻辑 ---------- */
-openSettingsBtn.addEventListener("click", ()=>{settingsModal.style.display="flex";});
+openSettingsBtn.addEventListener("click", ()=>{
+  loadSettings();
+  settingsModal.style.display="flex";
+});
 closeSettingsBtn.addEventListener("click", ()=>{settingsModal.style.display="none";});
 saveSettingsBtn.addEventListener("click", ()=>{
   saveSettings();
@@ -740,15 +952,19 @@ clearHistoryBtn.addEventListener("click", ()=>{
   }
 });
 
-/* ---------- 发送事件 & 输入高度 ---------- */
+/* ---------- 发送事件 & 输入高度 & collapsed 行为 ---------- */
 sendBtn.addEventListener("click", sendMessage);
 inputEl.addEventListener("keydown", (e)=>{
   if((e.ctrlKey && e.key==="Enter") || (e.key==="Enter" && !e.shiftKey && !e.ctrlKey)){
     e.preventDefault();
     sendMessage();
+    // keep expanded after sending
+    setExpandedState(false);
   }
 });
 inputEl.addEventListener('input', ()=>{
+  // if user types, ensure expanded
+  setExpandedState(true);
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
 });
@@ -779,14 +995,42 @@ if(window.visualViewport){
 }
 window.addEventListener('resize', updateForViewport);
 inputEl.addEventListener('focus', ()=>{
+  // expand input on focus
+  setExpandedState(true);
   setTimeout(()=>{ updateForViewport(); const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 250);
 });
-inputEl.addEventListener('blur', ()=>{ setTimeout(updateForViewport, 160); });
+inputEl.addEventListener('blur', ()=>{ 
+  // if empty, collapse after small delay to allow click on send
+  setTimeout(()=>{ if(!inputEl.value.trim()) setExpandedState(false); updateForViewport(); }, 160); 
+});
+
+/* ---------- 控制输入框 collapsed/expanded ---------- */
+function setExpandedState(expand){
+  if(expand){
+    inputEl.classList.remove("collapsed");
+    inputEl.classList.add("expanded");
+    // let flex behavior take over
+    inputEl.style.width = "";
+  } else {
+    // collapsed: only when no user content
+    if(inputEl.value && inputEl.value.trim()) return;
+    inputEl.classList.remove("expanded");
+    inputEl.classList.add("collapsed");
+    inputEl.style.height = "44px";
+    inputEl.style.width = ""; // the .collapsed css sets width
+  }
+}
 
 /* fallback 保证在 load 时正确设置 */
 window.addEventListener("load", ()=>{
   loadSettings();
   headerTitleUpdate();
+  // initialize collapsed state (start collapsed if input empty)
+  if(!inputEl.value || !inputEl.value.trim()){
+    inputEl.classList.add("collapsed");
+  } else {
+    inputEl.classList.add("expanded");
+  }
   renderMessages();
   updateForViewport();
 });
