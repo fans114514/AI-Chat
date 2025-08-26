@@ -195,14 +195,6 @@
   /* Toggle 行内样式（用类代替内联样式，保证与上一个选项的垂直间距由 .modal-row 控制） */
   .toggle-row{display:flex;align-items:center;gap:10px;}
   .toggle-desc{color:var(--muted);font-size:13px}
-  /* ---------- Sessions list small tweaks (kept minimal) ---------- */
-  .sessions-list { display:flex;flex-direction:column;gap:8px; margin-top:8px; }
-  .session-item { display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02); }
-  .session-item .left { display:flex;flex-direction:column; gap:2px; }
-  .session-item .name { font-weight:700; color:#fff; font-size:14px; }
-  .session-item .meta { font-size:12px; color:var(--muted); }
-  .session-actions { display:flex; gap:6px; align-items:center; }
-  .session-actions button { background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; }
 </style>
 </head>
 <body>
@@ -215,10 +207,7 @@
       <div class="signature" id="signature"></div>
     </div>
     <div>
-      <!-- 原“清空”按钮改为“新建会话”按钮（保留 id clearHistory 以减少 JS 改动） -->
-      <button class="clear-btn" id="clearHistory" title="新建会话">➕</button>
-      <!-- 新增：打开会话管理 -->
-      <button class="settings-btn" id="openSessions" title="会话管理">📂</button>
+      <button class="clear-btn" id="clearHistory" title="清除历史">🗑️</button>
       <button class="settings-btn" id="openSettings" title="设置">⚙️</button>
     </div>
   </header>
@@ -280,30 +269,12 @@
   </div>
 </div>
 
-<!-- 会话管理弹窗（已删除原有的“新建”输入区，新建改为 header 上的按钮） -->
-<div class="modal" id="sessionsModal">
-  <div class="modal-content">
-    <h2>会话管理</h2>
-
-    <div class="sessions-list" id="sessionsList"></div>
-
-    <div class="modal-actions">
-      <button class="btn close" id="closeSessions">关闭</button>
-    </div>
-  </div>
-</div>
-
 <script>
 
 const API_BASE = "https://api.deepseek.com";
 const MODEL_CHAT = "deepseek-chat";
 const MODEL_REASONER = "deepseek-reasoner";
-
-// 旧单会话存储 key（兼容迁移）
 const STORAGE_KEY = "deepseek_chat_autosave";
-// 新的多会话存储（mapping id -> session obj）
-const SESSIONS_KEY = "deepseek_chat_sessions_v1";
-const CURRENT_SESSION_KEY = "deepseek_chat_current_session_v1";
 const SETTINGS_KEY = "deepseek_chat_settings";
 
 const msgsEl = document.getElementById("messages");
@@ -316,257 +287,18 @@ const signatureInputEl = document.getElementById("signatureInput");
 const userPromptEl = document.getElementById("userPrompt");
 const apiKeyEl = document.getElementById("apiKeyInput");
 const reasoningToggleEl = document.getElementById("reasoningToggle");
+// 新增的默认折叠开关元素
 const defaultReasonCollapsedToggleEl = document.getElementById("defaultReasonCollapsedToggle");
 
 const settingsModal = document.getElementById("settingsModal");
 const openSettingsBtn = document.getElementById("openSettings");
 const closeSettingsBtn = document.getElementById("closeSettings");
 const saveSettingsBtn = document.getElementById("saveSettings");
-const clearHistoryBtn = document.getElementById("clearHistory"); // now acts as "新建会话"
+const clearHistoryBtn = document.getElementById("clearHistory");
 const bottomEl = document.getElementById("bottom");
 const headerTitle = document.getElementById("headerTitle");
 
-// sessions modal elements
-const openSessionsBtn = document.getElementById("openSessions");
-const sessionsModal = document.getElementById("sessionsModal");
-const closeSessionsBtn = document.getElementById("closeSessions");
-// (原 modal 中的新建输入已删除)
-const sessionsListEl = document.getElementById("sessionsList");
-
-let messages = []; // 当前会话的 messages
-let currentSession = null; // {id,name,createdAt,updatedAt,messages}
-
-/* ------------------ Sessions 管理（多会话实现核心） ------------------ */
-
-function loadAllSessions(){
-  try{
-    const raw = localStorage.getItem(SESSIONS_KEY);
-    if(!raw) return {};
-    return JSON.parse(raw) || {};
-  }catch(e){
-    return {};
-  }
-}
-function saveAllSessions(obj){
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(obj || {}));
-}
-
-function getCurrentSessionId(){
-  return localStorage.getItem(CURRENT_SESSION_KEY) || null;
-}
-function setCurrentSessionId(id){
-  if(id) localStorage.setItem(CURRENT_SESSION_KEY, id);
-  else localStorage.removeItem(CURRENT_SESSION_KEY);
-}
-
-// 迁移旧数据（如果存在 STORAGE_KEY 的数据）到 sessions 中（只在首次加载时调用）
-function migrateLegacyStorageIfNeeded(){
-  try{
-    const legacy = localStorage.getItem(STORAGE_KEY);
-    if(!legacy) return;
-    // 如果已经有 sessions 存在，跳过迁移（避免覆盖）
-    const all = loadAllSessions();
-    if(Object.keys(all).length > 0) return;
-    // 作为一个默认会话迁移
-    let parsed = [];
-    try{ parsed = JSON.parse(legacy) || []; }catch(e){ parsed = []; }
-    const id = `s_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-    const session = {
-      id,
-      name: "默认会话",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      messages: parsed
-    };
-    all[id] = session;
-    saveAllSessions(all);
-    setCurrentSessionId(id);
-    // 清理旧的 key（但保留以防误删—此处我保留不删除，避免破坏用户期待）
-    // localStorage.removeItem(STORAGE_KEY);
-  }catch(e){}
-}
-
-// create new session
-function createSession(name){
-  const all = loadAllSessions();
-  const id = `s_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-  const session = {
-    id,
-    name: name && name.trim() ? name.trim() : `会话 ${Object.keys(all).length + 1}`,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    messages: []
-  };
-  all[id] = session;
-  saveAllSessions(all);
-  setCurrentSessionId(id);
-  loadCurrentSession(); // set currentSession and messages
-  renderSessionsList();
-  renderMessages();
-  return session;
-}
-
-// delete session
-function deleteSession(id){
-  const all = loadAllSessions();
-  if(!all[id]) return;
-  delete all[id];
-  saveAllSessions(all);
-  // if deleted current -> switch to another or create new
-  if(currentSession && currentSession.id === id){
-    const keys = Object.keys(all);
-    if(keys.length > 0){
-      setCurrentSessionId(keys[0]);
-    } else {
-      // create a new empty session
-      const s = createSession("会话 1");
-      setCurrentSessionId(s.id);
-    }
-    loadCurrentSession();
-  }
-  renderSessionsList();
-  renderMessages();
-}
-
-// rename session
-function renameSession(id, newName){
-  const all = loadAllSessions();
-  if(!all[id]) return;
-  all[id].name = newName;
-  all[id].updatedAt = Date.now();
-  saveAllSessions(all);
-  if(currentSession && currentSession.id === id){
-    currentSession.name = newName;
-    headerTitleUpdate();
-  }
-  renderSessionsList();
-}
-
-// switch to session id
-function switchToSession(id){
-  const all = loadAllSessions();
-  if(!all[id]) return;
-  setCurrentSessionId(id);
-  loadCurrentSession();
-  renderSessionsList();
-  renderMessages();
-}
-
-// load current session (reads localStorage)
-function loadCurrentSession(){
-  const all = loadAllSessions();
-  let id = getCurrentSessionId();
-  if(!id || !all[id]){
-    // pick first session if exists, else create one
-    const keys = Object.keys(all);
-    if(keys.length > 0){
-      id = keys[0];
-      setCurrentSessionId(id);
-    } else {
-      const s = createSession("默认会话");
-      id = s.id;
-    }
-  }
-  currentSession = all[id];
-  // ensure messages array exists
-  messages = Array.isArray(currentSession.messages) ? currentSession.messages : [];
-  headerTitleUpdate();
-}
-
-/* save currentSession.messages back to storage (called whenever messages change) */
-function saveCurrentSession(){
-  try{
-    if(!currentSession) return;
-    const all = loadAllSessions();
-    // update currentSession fields
-    currentSession.updatedAt = Date.now();
-    currentSession.messages = messages;
-    all[currentSession.id] = currentSession;
-    saveAllSessions(all);
-    // for backward compatibility also save to old STORAGE_KEY (optional)
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); }catch(e){}
-    // also persist settings
-    // After saving, try to auto-summarize session title using AI (non-blocking)
-    try{
-      // only summarize when there is at least one user/assistant message
-      if(messages && messages.length > 0){
-        // === 关键修改 START ===
-        // 为了节省 API Key：仅在会话前 3 条有意义消息时（<=3）尝试自动总结标题，
-        // 超过 3 条消息后将把会话标记为 titleFinalized，不再调用 AI 总结。
-        // "有意义" 指 role 为 user/assistant，且不是占位 _typing 的消息。
-        const relevantCount = messages.filter(m => (m.role === "user" || m.role === "assistant") && m.content !== "_typing" && String(m.content||"").trim()).length;
-
-        // 如果有任何 assistant 消息仍在流式输出（streaming），则跳过本次总结（等待流结束触发最终保存时再尝试）
-        const anyStreaming = messages.some(m => m.role === "assistant" && !!m.streaming);
-        if(!currentSession.titleFinalized && !anyStreaming){
-          if(relevantCount <= 3){
-            // 仍在前三条内：尝试生成摘要标题（异步）
-            summarizeSessionTitle(currentSession.id);
-          } else {
-            // 超过三条：标记为 finalized，后续不再调用 summarize
-            currentSession.titleFinalized = true;
-            // persist this change
-            all[currentSession.id] = currentSession;
-            saveAllSessions(all);
-          }
-        }
-        // === 关键修改 END ===
-      }
-    }catch(e){}
-  }catch(e){}
-}
-
-/* render sessions list in modal */
-function renderSessionsList(){
-  const all = loadAllSessions();
-  const arr = Object.values(all).sort((a,b)=> b.updatedAt - a.updatedAt);
-  sessionsListEl.innerHTML = "";
-  for(const s of arr){
-    const item = document.createElement("div");
-    item.className = "session-item";
-    const left = document.createElement("div");
-    left.className = "left";
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = s.name + (currentSession && currentSession.id === s.id ? " (当前)" : "");
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `消息 ${Array.isArray(s.messages)?s.messages.length:0} • ${new Date(s.updatedAt).toLocaleString()}`;
-    left.appendChild(name);
-    left.appendChild(meta);
-    const actions = document.createElement("div");
-    actions.className = "session-actions";
-
-    const openBtn = document.createElement("button");
-    openBtn.textContent = "打开";
-    openBtn.addEventListener("click", ()=> {
-      switchToSession(s.id);
-      sessionsModal.style.display = "none";
-    });
-    actions.appendChild(openBtn);
-
-    const renameBtn = document.createElement("button");
-    renameBtn.textContent = "重命名";
-    renameBtn.addEventListener("click", ()=> {
-      const nn = prompt("请输入新的会话名称：", s.name);
-      if(nn && nn.trim()) renameSession(s.id, nn.trim());
-    });
-    actions.appendChild(renameBtn);
-
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "删除";
-    delBtn.addEventListener("click", ()=> {
-      if(confirm(`确定删除会话 "${s.name}" 吗？（删除后不可恢复）`)) {
-        deleteSession(s.id);
-      }
-    });
-    actions.appendChild(delBtn);
-
-    item.appendChild(left);
-    item.appendChild(actions);
-    sessionsListEl.appendChild(item);
-  }
-}
+let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 
 /* ------------------ Markdown helpers (安全、轻量、改进) ------------------ */
 function escapeHtml(str){
@@ -915,7 +647,7 @@ function renderMessages() {
         btn.addEventListener("click", ()=>{
           m.reasonCollapsed = !m.reasonCollapsed;
           // 保存到 storage
-          saveCurrentSession();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
           renderMessages();
         });
 
@@ -951,9 +683,7 @@ function renderMessages() {
   // 滚动到底部
   const container = msgsEl.parentElement;
   container.scrollTop = container.scrollHeight;
-
-  // 保存当前会话
-  saveCurrentSession();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
 
   // 增强：对所有 code block 注入复制按钮并执行高亮
   enhanceCodeBlocks();
@@ -1077,7 +807,7 @@ function loadSettings(){
   // 新增：读取默认折叠思维链开关
   if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
-  headerTitleUpdate();
+  signatureEl.textContent = signatureInputEl.value || "";
 }
 
 function saveSettings(){
@@ -1111,10 +841,7 @@ function isDefaultReasonCollapsed(){
 
 function headerTitleUpdate(){
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
-  // 显示个签，同时在个签后显示当前会话名（如果存在），不改变样式结构
-  const sig = signatureInputEl.value || "";
-  const sessionName = currentSession ? currentSession.name : "";
-  signatureEl.textContent = sessionName ? (sig ? (sig + " · " + sessionName) : sessionName) : sig;
+  signatureEl.textContent = signatureInputEl.value || "";
 }
 
 /* ---------- 发送并流式接收（保持原逻辑，但使用本地存储的 API Key，并支持 reasoning） ---------- */
@@ -1184,15 +911,8 @@ async function sendMessage(){
       let buffer = "";
       // ensure the placeholder is an object we can update
       if(messages[replyMessageIndex].content==="_typing"){
-        // 标记 streaming: true，表示正在流式输出
-        messages[replyMessageIndex] = {role:"assistant", content:"", reasoning:null, reasonCollapsed: placeholderReasonCollapsed, id:placeholderId, streaming: true};
-      } else {
-        // 如果不是 _typing（边界情况），也确保 streaming 标记
-        messages[replyMessageIndex].streaming = true;
+        messages[replyMessageIndex] = {role:"assistant", content:"", reasoning:null, reasonCollapsed: placeholderReasonCollapsed, id:placeholderId};
       }
-      // initial render so UI shows message (并触发一次保存，但 saveCurrentSession 会检测 streaming 并跳过总结)
-      renderMessages();
-
       let reply = messages[replyMessageIndex];
       while(true){
         const {done, value} = await reader.read();
@@ -1234,10 +954,8 @@ async function sendMessage(){
         }
       }
       // 流结束后确保把最终数据写回并保存
-      // 标记 streaming 完成 -> 触发一次最终保存（此时 saveCurrentSession 会允许总结）
-      reply.streaming = false;
       messages[replyMessageIndex] = reply;
-      saveCurrentSession();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
       renderMessages();
     } else {
       // 非流式：直接 parse JSON
@@ -1262,16 +980,14 @@ async function sendMessage(){
       }
       // Replace placeholder with final reply
       // **关键改动**：如果存在 reasoningText，则根据“默认折叠思维链”设置决定 reasonCollapsed
-      const reply = {role:"assistant", content: assistantText || "[空回复]", reasoning: reasoningText, reasonCollapsed: (reasoningText ? isDefaultReasonCollapsed() : false), id:placeholderId, streaming: false};
+      const reply = {role:"assistant", content: assistantText || "[空回复]", reasoning: reasoningText, reasonCollapsed: (reasoningText ? isDefaultReasonCollapsed() : false), id:placeholderId};
       messages[replyMessageIndex] = reply;
-      saveCurrentSession();
       renderMessages();
     }
   }catch(e){
     // error handling: replace typing placeholder with error message
-    const errMsg = {role:"assistant", content: "\n[错误] " + e.message, reasoning:null, reasonCollapsed:false, id:placeholderId, streaming: false};
+    const errMsg = {role:"assistant", content: "\n[错误] " + e.message, reasoning:null, reasonCollapsed:false, id:placeholderId};
     messages[replyMessageIndex] = errMsg;
-    saveCurrentSession();
     renderMessages();
   }
 }
@@ -1288,23 +1004,13 @@ saveSettingsBtn.addEventListener("click", ()=>{
   renderMessages();
 });
 
-/* ---------- Sessions 弹窗逻辑 ---------- */
-openSessionsBtn.addEventListener("click", ()=>{
-  loadSettings(); // also ensure header updated
-  renderSessionsList();
-  sessionsModal.style.display = "flex";
-});
-closeSessionsBtn.addEventListener("click", ()=>{ sessionsModal.style.display = "none"; });
-
-/* ---------- 原“清空历史”按钮现在变为“新建会话”按钮 ----------
-   关键修改：创建新会话但不自动打开会话管理弹窗
-*/
+/* ---------- 清空历史 ---------- */
 clearHistoryBtn.addEventListener("click", ()=>{
-  // 创建一个新的空会话并切换到它
-  createSession("");
-  // 之前这里会自动打开 sessionsModal；现在移除该行为，保持界面不弹出
-  // renderSessionsList();
-  // sessionsModal.style.display = "flex";
+  if(confirm("确定要清空所有聊天记录吗？")){
+    messages = [];
+    localStorage.removeItem(STORAGE_KEY);
+    renderMessages();
+  }
 });
 
 /* ---------- 发送事件 & 输入高度 & collapsed 行为 ---------- */
@@ -1382,130 +1088,9 @@ function setExpandedState(expand){
   }
 }
 
-/* ---------- 会话标题自动总结（通过 API） ----------
-   说明：
-   - 使用用户在设置中配置的 API Key（getApiKey()）调用模型生成短标题
-   - 提示模型只返回“标题文本”，不返回多余说明
-   - 只基于前几条消息（最大 N）生成
-   - 失败时静默（不会阻塞主流程）
-   - 关键修改：如果会话被标记为 titleFinalized 或者已超过前三条“有意义”消息，则不再调用 AI，总结停止
-   - 关键修改2：当存在正在流式输出的 assistant 消息时，跳过总结（等待流结束后由最终 saveCurrentSession 触发）
-*/
-async function summarizeSessionTitle(sessionId){
-  try{
-    const apiKey = getApiKey();
-    if(!apiKey) return; // 没配置就不做
-    const all = loadAllSessions();
-    if(!all[sessionId]) return;
-    const session = all[sessionId];
-
-    // 如果会话已经被标记为 finalized，则直接返回（不再调用 API）
-    if(session.titleFinalized) return;
-
-    const msgs = Array.isArray(session.messages) ? session.messages : [];
-    if(msgs.length === 0) return;
-
-    // 计算“有意义”消息数量：role 为 user/assistant 并且不是占位 _typing，且有实际内容
-    const relevant = [];
-    for(let i=0;i<msgs.length;i++){
-      const m = msgs[i];
-      if((m.role === "user" || m.role === "assistant") && m.content !== "_typing" && String(m.content||"").trim()){
-        relevant.push(m);
-      }
-      if(relevant.length >= 4) break; // 我们只关心是否超过 3 条
-    }
-    // 如果已经超过 3 条，则把会话标记为 finalized 并退出（节省调用）
-    if(relevant.length > 3){
-      session.titleFinalized = true;
-      session.updatedAt = Date.now();
-      all[session.id] = session;
-      saveAllSessions(all);
-      return;
-    }
-
-    // 取前几条有意义的消息（user/assistant），最多 3 条
-    const selected = relevant.slice(0,3).map(m=>({role:m.role, content: String(m.content || "").trim()}));
-    if(selected.length === 0) return;
-
-    // 构建 prompt：让模型返回简短的标题（最多 40 字），仅返回标题本身，不要解释
-    const promptMessages = [];
-    promptMessages.push({
-      role: "system",
-      content: "你是一个助手，擅长为对话生成简短、准确的会话标题。请只返回标题文本，不要包含引号或额外说明。长度建议不超过 40 个字符。"
-    });
-    // 将所选消息以简单格式放入 user 信息中
-    let userContent = "以下是会话的前几条消息，请基于这些内容给出一个简洁的会话标题：\n\n";
-    for(const r of selected){
-      userContent += `${r.role === 'user' ? '用户' : '助手'}: ${r.content}\n`;
-    }
-    userContent += "\n只输出标题本身。";
-    promptMessages.push({role:"user", content: userContent});
-
-    const url = API_BASE + "/chat/completions";
-    const body = {
-      model: MODEL_CHAT,
-      messages: promptMessages,
-      stream: false,
-      max_tokens: 32,
-      temperature: 0.3
-    };
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type":"application/json",
-        "Authorization":"Bearer "+apiKey
-      },
-      body: JSON.stringify(body)
-    });
-
-    if(!res.ok) return;
-    const j = await res.json();
-    const choice = j.choices && j.choices[0];
-    let title = "";
-    if(choice){
-      if(choice.message && typeof choice.message.content === "string"){
-        title = choice.message.content;
-      } else if(choice.text){
-        title = choice.text;
-      }
-    }
-    if(!title) return;
-    title = String(title).trim();
-    // 一些模型可能返回多行或解释，取首行
-    title = title.split("\n")[0].trim();
-    // 去除左右引号
-    title = title.replace(/^["'`]+|["'`]+$/g, "");
-    if(title.length === 0) return;
-    // 限制长度
-    if(title.length > 60) title = title.slice(0,60) + "...";
-
-    // 更新存储中的会话名（仅当与现有不同）
-    if(session.name !== title){
-      session.name = title;
-      session.updatedAt = Date.now();
-      all[session.id] = session;
-      saveAllSessions(all);
-      // 如果更新的是当前会话，更新 currentSession 引用并刷新 header
-      if(currentSession && currentSession.id === session.id){
-        currentSession.name = title;
-        headerTitleUpdate();
-      }
-      renderSessionsList();
-    }
-  }catch(e){
-    // 忽略错误（非阻塞）
-    // console.warn("summarizeSessionTitle failed", e);
-  }
-}
-
-/* ---------- fallback 保证在 load 时正确设置 ---------- */
+/* fallback 保证在 load 时正确设置 */
 window.addEventListener("load", ()=>{
-  // 1. 迁移旧数据（如果有）
-  migrateLegacyStorageIfNeeded();
-  // 2. 加载当前会话
   loadSettings();
-  loadCurrentSession();
   headerTitleUpdate();
   // initialize collapsed state (start collapsed if input empty)
   if(!inputEl.value || !inputEl.value.trim()){
@@ -1513,7 +1098,6 @@ window.addEventListener("load", ()=>{
   } else {
     inputEl.classList.add("expanded");
   }
-  renderSessionsList();
   renderMessages();
   updateForViewport();
 });
