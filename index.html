@@ -9,6 +9,12 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
 
+<!-- KaTeX for math rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<!-- auto-render extension: automatically render delimiters like \(..\) and \[..\] -->
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
 <style>
   :root{
     --bg:#0F1113;
@@ -631,6 +637,23 @@ function renderMessages() {
       content.innerHTML = markdownToHtml(m.content || "");
       el.appendChild(content);
 
+      // --- 新增：渲染数学公式（KaTeX auto-render）
+      // 只在 KaTeX 的 auto-render 已加载时调用，使用常用分隔符 \(..\) 和 \[..\]
+      if(window.renderMathInElement){
+        try{
+          renderMathInElement(content, {
+            delimiters: [
+              {left: "\\(", right: "\\)", display: false},
+              {left: "\\[", right: "\\]", display: true}
+            ],
+            throwOnError: false
+          });
+        }catch(e){
+          // silently ignore rendering errors to avoid affecting UI
+          console.warn("Math render error:", e);
+        }
+      }
+
       // 如果有 reasoning 字段，则渲染折叠区域
       if(m.reasoning){
         // container for toggle + collapsed reasoning
@@ -667,6 +690,19 @@ function renderMessages() {
           rbox.style.display = "";
           rbox.style.boxShadow = "none";
           rbox.innerHTML = markdownToHtml(m.reasoning || "");
+
+          // 渲染 reasoning 中的数学公式（如果 KaTeX 已就绪）
+          if(window.renderMathInElement){
+            try{
+              renderMathInElement(rbox, {
+                delimiters: [
+                  {left: "\\(", right: "\\)", display: false},
+                  {left: "\\[", right: "\\]", display: true}
+                ],
+                throwOnError: false
+              });
+            }catch(e){}
+          }
         }
         el.appendChild(rbox);
       }
