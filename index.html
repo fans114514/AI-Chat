@@ -533,7 +533,7 @@ function renderMessages() {
          
          const header = document.createElement("div");
          header.className = "memory-notice-header";
-         header.innerHTML = `<span>✨ 记住了新的信息</span><button class="memory-notice-btn">展开详情</button>`;
+         header.innerHTML = `<span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn">展开详情</button>`;
          
          const details = document.createElement("div");
          details.className = "memory-notice-content";
@@ -546,16 +546,17 @@ function renderMessages() {
 
          const undoBtn = document.createElement("button");
          undoBtn.className = "memory-undo-btn";
-         undoBtn.textContent = "撤销 (Undo)";
+         undoBtn.textContent = "撤销";
          undoBtn.addEventListener("click", () => {
              // 执行撤销
-             if(m.memoryInfo.backup){
+             // FIX: 使用 !== null 检查，以确保即使是空数组也能正确恢复
+             if(m.memoryInfo.backup !== null){
                  memories = [...m.memoryInfo.backup];
                  saveMemoriesToStorage();
                  m.memoryInfo.reverted = true; // 标记已撤销
                  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
                  renderMessages();
-                 alert("已恢复到该对话前的记忆状态。");
+                 alert("遗忘不是终点");
              }
          });
          details.appendChild(undoBtn);
@@ -783,7 +784,7 @@ async function sendMessage(){
   addMessage("user", text);
 
   // 构建 Prompt
-  let sysPrompt = `现在是 ${getBeijingTime()}（北京时间）你正在通过网页和用户聊天\n用户提示：${userPromptEl.value||""}`;
+  let sysPrompt = `现在是 ${getBeijingTime()}（北京时间），用户提示：${userPromptEl.value||""}`;
   
   if(isMemoryEnabled()){
      const memJson = JSON.stringify(memories);
@@ -795,19 +796,26 @@ ${memJson}
 </memory>
 
 行为准则：
-1. 即使清空历史，也要基于记忆库保持人设和对用户的了解。
-2. 自然地体现你记得这些信息，不要生硬列举。
+​记忆库中包含了用户的姓名、偏好、过去提到的重要事件等。
+​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性（例如：如果记忆里说用户叫XX，你就要以此称呼他）。
+​在对话中要自然地流露出你记得这些信息，不要像机器人一样生硬地列举。
 
-**添加/修改记忆工具**：
-如果用户提供了重要的**新**个人信息，或者要求你修改记忆，请在回复的**最前面**（必须是回复的开头）使用以下工具：
+你拥有添加记忆的能力：
+​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
 
-增加记忆: [UPDATE_MEMORY:"内容"]
-修改记忆: [SETDATE_MEMORY:"内容",number:"序号"]
+[UPDATE_MEMORY:"内容"]
+#该工具为增加记忆，当你的记忆库里没有你要记住的东西，你就可以使用这个；
 
-重要：
-1. **必须把工具标签放在回复的第一个字符开始处**，不要在标签前说任何话。
-2. 标签后可正常回复用户。
-3. 只能检测到明确的信息变更时使用，不要记录闲聊。
+[SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
+#该工具为更改记忆，如果你要记住的东西和之前传给你的记忆有相悖的，按照最新的进行修改，禁止总结之前的记忆后加入新记忆，避免记忆零碎
+
+##必须严格按照以上格式进行回复
+
+你可以记住：个人基本信息、技术偏好
+当用户要求你记住什么东西时，你应当满足
+
+禁止同时使用以上两个工具，每轮对话中只能使用一个/一次
+​​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
 `;
   }
 
@@ -847,7 +855,8 @@ ${memJson}
         reasonCollapsed: placeholderReasonCollapsed, 
         id: placeholderId,
         // 记忆处理状态
-        memoryInfo: { logs: [], backup: [], reverted: false } 
+        // FIX: backup 初始化为 null，以便区分 "未备份" 和 "空记忆库备份"
+        memoryInfo: { logs: [], backup: null, reverted: false } 
     };
     messages[replyMessageIndex] = reply;
 
@@ -907,7 +916,8 @@ ${memJson}
                             
                             if(result.hasUpdate){
                                 // 是有效记忆标签，记录日志，不输出到 content
-                                if(!reply.memoryInfo.backup.length) reply.memoryInfo.backup = result.backup;
+                                // FIX: 仅当 backup 为 null 时才记录初始状态，避免后续更新覆盖初始备份
+                                if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
                                 reply.memoryInfo.logs.push(...result.logs);
                             } else {
                                 // 虽然是 [...] 格式但不是我们的指令，当作普通文本输出
