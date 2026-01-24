@@ -260,10 +260,10 @@
 
     <!-- 记忆功能开关 -->
     <div class="modal-row">
-      <label>长期记忆 (Long-term Memory)</label>
+      <label>\n长期记忆 </label>
       <div class="toggle-row">
         <input id="memoryToggle" type="checkbox" />
-        <div class="toggle-desc">开启记忆功能</div>
+        <div class="toggle-desc">开启记忆功能（开启深度思考功能最佳）</div>
       </div>
       <!-- 样式修改：做成超链接形式 -->
       <button class="link-btn" id="openMemoryManager">进入记忆管理界面</button>
@@ -556,7 +556,7 @@ function renderMessages() {
                  m.memoryInfo.reverted = true; // 标记已撤销
                  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
                  renderMessages();
-                 alert("遗忘不是终点");
+                 alert("遗忘不是终点...");
              }
          });
          details.appendChild(undoBtn);
@@ -574,7 +574,7 @@ function renderMessages() {
       } else if (m.memoryInfo && m.memoryInfo.reverted) {
           const restoredMsg = document.createElement("div");
           restoredMsg.className = "memory-notice-box";
-          restoredMsg.innerHTML = `<div class="memory-restored-text">↩️ 已撤销此次记忆更新</div>`;
+          restoredMsg.innerHTML = `<div class="memory-restored-text">已撤销</div>`;
           el.appendChild(restoredMsg);
       }
     }
@@ -809,7 +809,7 @@ ${memJson}
 [SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
 #该工具为更改记忆，如果你要记住的东西和之前传给你的记忆有相悖的，按照最新的进行修改，禁止总结之前的记忆后加入新记忆，避免记忆零碎
 
-##必须严格按照以上格式进行回复
+##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
 
 你可以记住：个人基本信息、技术偏好
 当用户要求你记住什么东西时，你应当满足
