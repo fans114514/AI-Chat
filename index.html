@@ -12,7 +12,6 @@
 <!-- KaTeX for math rendering -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-<!-- auto-render extension: automatically render delimiters like \(..\) and \[..\] -->
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 
 <style>
@@ -24,285 +23,138 @@
     --accent:#0066CC;
     --radius:14px;
     --safe-bottom: env(safe-area-inset-bottom, 12px);
-    --bottom-height: 76px; /* 基础底部空间, 会在 runtime 动态调整 */
+    --bottom-height: 76px;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family: Inter, "Helvetica Neue", Arial, sans-serif;-webkit-font-smoothing:antialiased}
   .app{display:flex;flex-direction:column;min-height:100vh;gap:0}
   header{padding:14px 12px;background:var(--panel);border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center}
   .ai-box{display:flex;flex-direction:column}
-  .ai-title{
-    font-weight:600;font-size:16px;letter-spacing:0.2px;display:flex;align-items:center;
-  }
+  .ai-title{font-weight:600;font-size:16px;letter-spacing:0.2px;display:flex;align-items:center;}
   .signature{font-size:12px;color:var(--muted);margin-top:4px}
   main{flex:1;overflow:auto;padding:16px;padding-bottom:calc(var(--bottom-height) + var(--safe-bottom));display:flex;flex-direction:column;gap:12px}
   .messages{display:flex;flex-direction:column;gap:12px;align-items:stretch}
   .msg{max-width:78%;padding:10px 12px;border-radius:12px;font-size:15px;line-height:1.45;word-break:break-word;white-space:pre-wrap;background:var(--bubble)}
   .msg.user{margin-left:auto;text-align:left}
-  .msg.ai{margin-right:auto;text-align:left}
+  .msg.ai{margin-right:auto;text-align:left;position: relative;}
+  
   .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .nick{font-weight:700;color:#fff;display:flex;align-items:center}
-  /* 打字动画小点点：放在昵称下面 */
   .typing-dots{display:inline-flex;gap:6px;margin-top:2px}
   .typing-dots span{width:6px;height:6px;background:var(--muted);border-radius:50%;display:inline-block;animation:blink 1.4s infinite}
   .typing-dots span:nth-child(2){animation-delay:0.2s}
   .typing-dots span:nth-child(3){animation-delay:0.4s}
   @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
-  /* spacer：确保最后消息不会被固定底部覆盖 */
+  
   .messages-spacer{height:var(--bottom-height);flex-shrink:0}
-  /* 固定底部，动态调整 bottom 值由脚本控制以适配键盘 */
   .bottom{position:fixed;left:0;right:0;padding:12px 12px calc(12px + var(--safe-bottom));backdrop-filter: blur(6px);background:var(--panel);border-top:1px solid rgba(255,255,255,0.05);z-index:8;transition:bottom 160ms ease}
   .composer{display:flex;gap:8px;align-items:center}
   textarea#input{flex:1;min-height:44px;max-height:240px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;overflow-y:auto;line-height:1.4;transition:width 160ms ease,height 160ms ease,padding 160ms ease}
   .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer}
   .settings-btn,.clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:8px}
-  /* 弹窗 */
+
+  /* Modal */
   .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:10}
   .modal-content{background:var(--panel);padding:18px;border-radius:var(--radius);width:92%;max-width:520px;box-shadow:0 0 10px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:6px}
   .modal-content h2{margin:0 0 8px 0;font-size:18px}
-  /* label + input 对齐，所有输入均占满宽度 */
   .modal-row{display:flex;flex-direction:column;gap:6px;}
   .modal-content label{color:var(--muted);font-size:13px}
   .modal-content input[type="text"], .modal-content input[type="search"], .modal-content input[type="password"]{
     width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;
   }
-  /* 自定义提示词改为 textarea，用于大段文字，但保持与其它输入对齐 */
   .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
   .btn.save{Background:var(--accent);color:#fff}
   .btn.danger{background:#d32f2f;color:#fff}
   .btn.close{background:#333;color:#ccc}
-  /* 微调消息容器滚动平滑 */
+  /* 超链接样式的按钮 */
+  .link-btn {
+      background: none; border: none; color: var(--accent);
+      text-decoration: underline; cursor: pointer; font-size: 13px; 
+      padding: 0; align-self: flex-start; margin-top: 4px;
+  }
+
   main, .messages {scroll-behavior: smooth;}
 
-  /* ======= Markdown & code block styles (调整为更紧凑) ======= */
+  /* Markdown & Code */
   .msg pre {
-    background: #0b0c0d;
-    border-radius:8px;
-    padding:12px;
-    margin:6px 0;
-    overflow:auto;
+    background: #0b0c0d; border-radius:8px; padding:12px; margin:6px 0; overflow:auto;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
-    font-size:13px;
-    line-height:1.45;
-    border:1px solid rgba(255,255,255,0.04);
-    white-space:pre; /* code 高亮更准确 */
-    word-break:normal;
-    position:relative; /* 为右上角按钮定位 */
+    font-size:13px; line-height:1.45; border:1px solid rgba(255,255,255,0.04);
+    white-space:pre; word-break:normal; position:relative;
   }
   .msg code.inline {
-    background: rgba(255,255,255,0.03);
-    padding:2px 6px;
-    border-radius:6px;
+    background: rgba(255,255,255,0.03); padding:2px 6px; border-radius:6px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
     font-size:13px;
   }
-
-  /* small adjustments for headings / paragraphs to reduce large gaps */
-  .msg h1, .msg h2, .msg h3, .msg h4 {
-    margin:8px 0 6px;
-    color:#fff;
-  }
+  .msg h1, .msg h2, .msg h3, .msg h4 { margin:8px 0 6px; color:#fff; }
   .msg p{margin:6px 0}
-  .msg ul{margin:6px 0 8px 18px;padding:0}
-  .msg ol{margin:6px 0 8px 18px;padding:0}
+  .msg ul, .msg ol{margin:6px 0 8px 18px;padding:0}
   .msg li{margin:6px 0}
   .msg blockquote{
     margin:6px 0;padding:8px 12px;border-left:3px solid rgba(255,255,255,0.06);
     color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px;
   }
   .msg a{color:var(--accent);text-decoration:none}
-  .msg a:hover{text-decoration:underline}
+  .code-controls { position:absolute; top:8px; right:8px; display:flex; gap:6px; align-items:center; z-index:5; }
+  .copy-btn { background: rgba(255,255,255,0.06); color: #e6eef6; border: none; padding:6px 8px; border-radius:8px; font-size:12px; cursor:pointer; backdrop-filter: blur(4px); }
+  .lang-badge { background: rgba(255,255,255,0.03); color: var(--muted); padding:4px 6px; border-radius:8px; font-size:11px; }
 
-  /* copy button (半透明圆角灰色) */
-  .code-controls {
-    position:absolute;
-    top:8px;
-    right:8px;
-    display:flex;
-    gap:6px;
-    align-items:center;
-    z-index:5;
-  }
-  .copy-btn {
-    background: rgba(255,255,255,0.06);
-    color: #e6eef6;
-    border: none;
-    padding:6px 8px;
-    border-radius:8px;
-    font-size:12px;
-    cursor:pointer;
-    backdrop-filter: blur(4px);
-  }
-  .copy-btn:active { transform: translateY(1px); }
-  .lang-badge {
-    background: rgba(255,255,255,0.03);
-    color: var(--muted);
-    padding:4px 6px;
-    border-radius:8px;
-    font-size:11px;
-  }
+  @media (max-height:600px){ .modal-content{max-height:80vh;overflow:auto} }
 
-  @media (max-height:600px){
-    .modal-content{max-height:80vh;overflow:auto}
-  }
-
-  /* ====== 思维链 (reasoning) 样式 ====== */
+  /* Reasoning */
   .reasoning-box {
-    margin-top:8px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.03);
-    padding:10px;
-    border-radius:10px;
-    color:var(--muted);
-    font-size:13px;
-    line-height:1.45;
-    /* 确保展开时没有阴影 */
-    box-shadow: none;
+    margin-top:8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03);
+    padding:10px; border-radius:10px; color:var(--muted); font-size:13px; line-height:1.45;
   }
-  .reasoning-toggle {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:8px;
-    margin-top:8px;
-  }
-  .reasoning-toggle button {
-    background: transparent;
-    color: var(--muted);
-    border:1px solid rgba(255,255,255,0.04);
-    padding:6px 8px;
-    border-radius:8px;
-    cursor:pointer;
-    font-size:12px;
-  }
+  .reasoning-toggle { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; }
+  .reasoning-toggle button { background: transparent; color: var(--muted); border:1px solid rgba(255,255,255,0.04); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; }
   .reason-label { font-size:12px;color:var(--muted); }
-  /* 折叠状态：完全隐藏（不显示预览、不加渐变） */
-  .reasoning-collapsed {
-    display: none;
-  }
-
-  /* 输入框 collapsed 状态（未聚焦） */
-  textarea.collapsed {
-    width: 160px; /* 收起时较窄，和发送按钮在一行对齐，视觉更简洁 */
-    padding-top:8px;
-    padding-bottom:8px;
-    height:44px;
-  }
-  /* 聚焦时恢复 flex:1 */
-  textarea.expanded {
-    width: auto;
-    flex:1;
-  }
-  /* small device tweak: 收起宽度不要太窄 */
-  @media (max-width:420px){
-    textarea.collapsed { width: 120px; }
-  }
-
-  /* Toggle 行内样式（用类代替内联样式，保证与上一个选项的垂直间距由 .modal-row 控制） */
+  textarea.collapsed { width: 160px; padding-top:8px; padding-bottom:8px; height:44px; }
+  textarea.expanded { width: auto; flex:1; }
+  @media (max-width:420px){ textarea.collapsed { width: 120px; } }
   .toggle-row{display:flex;align-items:center;gap:10px;}
   .toggle-desc{color:var(--muted);font-size:13px}
 
-  /* 记忆功能相关样式 */
+  /* Memory Manager */
   .memory-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 8px;
-    padding: 8px;
-    background: #151719;
+    display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 8px; background: #151719;
   }
-  .memory-item {
-    display: flex;
-    gap: 6px;
-    background: rgba(255,255,255,0.03);
-    padding: 6px;
-    border-radius: 6px;
-    align-items: center;
-  }
-  .memory-index {
-    color: var(--muted);
-    font-size: 11px;
-    min-width: 20px;
-  }
-  .memory-content {
-    flex: 1;
-    font-size: 13px;
-    color: #ddd;
-    word-break: break-all;
-  }
-  .memory-btn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 14px;
-  }
+  .memory-item { display: flex; gap: 6px; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 6px; align-items: center; }
+  .memory-index { color: var(--muted); font-size: 11px; min-width: 20px; }
+  .memory-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
   .memory-btn:hover { color: #d32f2f; }
   
-  /* 记忆 Toast 弹窗 */
-  .toast {
-    position: fixed;
-    /* 放在输入框上方 */
-    bottom: calc(var(--bottom-height) + 12px);
-    left: 12px;
-    right: 12px;
-    margin: 0 auto;
-    max-width: 600px;
-    background: var(--panel);
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    border-radius: 12px;
-    padding: 10px 14px;
-    z-index: 9;
-    display: none; /* 默认隐藏 */
-    flex-direction: column;
-    gap: 8px;
-    animation: slideUp 0.3s ease-out;
-  }
-  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  
-  .toast-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 13px;
-    color: #fff;
-    font-weight: 600;
-  }
-  .toast-toggle-btn {
-    background: none;
-    border: none;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .toast-details {
-    display: none;
-    font-size: 12px;
-    color: var(--muted);
-    background: rgba(0,0,0,0.2);
-    padding: 8px;
+  /* Message-Inline Memory Notice (New) */
+  .memory-notice-box {
+    margin-top: 10px;
+    background: rgba(40, 60, 80, 0.4);
+    border: 1px solid rgba(0, 102, 204, 0.3);
     border-radius: 8px;
-    margin-top: 4px;
-  }
-  .toast-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 4px;
-  }
-  .toast-undo-btn {
-    background: rgba(255,255,255,0.1);
-    border: none;
+    padding: 8px 10px;
+    font-size: 12px;
     color: #e6eef6;
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    cursor: pointer;
   }
+  .memory-notice-header {
+    display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #8cb4ff;
+  }
+  .memory-notice-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px;
+  }
+  .memory-notice-btn:hover { color: #fff; text-decoration: underline; }
+  .memory-notice-content {
+    margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);
+    display: none; /* Default hidden */
+  }
+  .memory-log-line { margin-bottom: 4px; color: #ccc; }
+  .memory-undo-btn {
+    margin-top: 6px; background: rgba(255,255,255,0.1); border: none; color: #fff;
+    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;
+  }
+  .memory-undo-btn:hover { background: rgba(255,255,255,0.2); }
+  .memory-restored-text { color: var(--muted); font-style: italic; margin-top: 4px; }
 
 </style>
 </head>
@@ -324,20 +176,6 @@
     <div class="messages" id="messages"></div>
   </main>
   
-  <!-- 记忆通知 Toast -->
-  <div class="toast" id="memoryToast">
-    <div class="toast-header">
-      <span>✨ 我记住了关于你的一点东西</span>
-      <button class="toast-toggle-btn" id="toastToggleBtn">展开</button>
-    </div>
-    <div class="toast-details" id="toastDetails">
-      <div id="toastContentText"></div>
-      <div class="toast-actions">
-        <button class="toast-undo-btn" id="toastUndoBtn">撤销 (Undo)</button>
-      </div>
-    </div>
-  </div>
-
   <div class="bottom" id="bottom">
     <div class="composer">
       <textarea id="input" placeholder="Enter your text." rows="1" aria-label="消息输入"></textarea>
@@ -413,7 +251,6 @@
       </div>
     </div>
 
-    <!-- 默认折叠思维链 -->
     <div class="modal-row">
       <div class="toggle-row">
         <input id="defaultReasonCollapsedToggle" type="checkbox" />
@@ -428,7 +265,8 @@
         <input id="memoryToggle" type="checkbox" />
         <div class="toggle-desc">开启记忆功能</div>
       </div>
-      <button class="btn" style="margin-top:4px; font-size:12px; background:#222; color:#ccc;" id="openMemoryManager">进入记忆管理界面</button>
+      <!-- 样式修改：做成超链接形式 -->
+      <button class="link-btn" id="openMemoryManager">进入记忆管理界面</button>
     </div>
 
     <div class="modal-actions">
@@ -445,7 +283,7 @@ const MODEL_CHAT = "deepseek-chat";
 const MODEL_REASONER = "deepseek-reasoner";
 const STORAGE_KEY = "deepseek_chat_autosave";
 const SETTINGS_KEY = "deepseek_chat_settings";
-const MEMORY_KEY = "deepseek_chat_memory"; // 记忆存储键
+const MEMORY_KEY = "deepseek_chat_memory";
 
 const msgsEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
@@ -467,12 +305,10 @@ const closeSettingsBtn = document.getElementById("closeSettings");
 const saveSettingsBtn = document.getElementById("saveSettings");
 const clearHistoryBtn = document.getElementById("clearHistory");
 
-// Confirm Modal
 const confirmModal = document.getElementById("confirmModal");
 const confirmClearBtn = document.getElementById("confirmClear");
 const cancelClearBtn = document.getElementById("cancelClear");
 
-// Memory Modal
 const memoryModal = document.getElementById("memoryModal");
 const openMemoryManagerBtn = document.getElementById("openMemoryManager");
 const closeMemoryModalBtn = document.getElementById("closeMemoryModal");
@@ -480,32 +316,16 @@ const saveMemoryModalBtn = document.getElementById("saveMemoryModal");
 const memoryListContainer = document.getElementById("memoryListContainer");
 const manualMemoryInput = document.getElementById("manualMemoryInput");
 
-// Memory Toast
-const memoryToast = document.getElementById("memoryToast");
-const toastToggleBtn = document.getElementById("toastToggleBtn");
-const toastDetails = document.getElementById("toastDetails");
-const toastContentText = document.getElementById("toastContentText");
-const toastUndoBtn = document.getElementById("toastUndoBtn");
-
 const bottomEl = document.getElementById("bottom");
 
 let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 let memories = JSON.parse(localStorage.getItem(MEMORY_KEY) || "[]");
-let previousMemories = []; // 用于撤销
 
-/* ------------------ Markdown helpers (安全、轻量、改进) ------------------ */
+/* ------------------ Markdown helpers ------------------ */
 function escapeHtml(str){
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/**
- * 提取代码块（支持未闭合的起始 ```：把剩余当 code 内容）
- * 返回 {text: replacedText, codeBlocks: [...]}
- */
 function extractCodeBlocksRaw(text){
   const codeBlocks = [];
   let out = "";
@@ -516,68 +336,37 @@ function extractCodeBlocksRaw(text){
       out += text.slice(pos);
       break;
     }
-    // append before fence
     out += text.slice(pos, start);
-    // find matching end
     const end = text.indexOf("```", start + 3);
     const between = (end === -1) ? text.slice(start + 3) : text.slice(start + 3, end);
-    // detect optional language on first line
     const m = between.match(/^([^\n]*)\n([\s\S]*)$/);
     let lang = "", code = "";
-    if(m){
-      lang = m[1].trim();
-      code = m[2];
-    } else {
-      // 没有明确的语言行，把整个 between 视为 code 内容（可能包括 single-line code）
-      lang = "";
-      code = between;
-    }
+    if(m){ lang = m[1].trim(); code = m[2]; } else { lang = ""; code = between; }
     const idx = codeBlocks.length;
     codeBlocks.push({lang, code});
     out += `@@CODEBLOCK_${idx}@@`;
-    if(end === -1){
-      // 未闭合，已经消费到文本末尾，退出
-      pos = text.length;
-      break;
-    } else {
-      pos = end + 3;
-      continue;
-    }
+    if(end === -1){ pos = text.length; break; } else { pos = end + 3; continue; }
   }
   return {text: out, codeBlocks};
 }
 
-/**
- * 将简易 Markdown 转为安全的 HTML
- */
 function markdownToHtml(input){
   if(input === null || input === undefined) return "";
-
-  // 标准化换行
   let text = String(input).replace(/\r\n/g, "\n");
-
-  // 抽取代码块（支持未闭合）
   const extracted = extractCodeBlocksRaw(text);
   text = extracted.text;
   const codeBlocks = extracted.codeBlocks;
-
-  // 分行处理（合并连续行到一个 <p>）
   const lines = text.split("\n");
   const outParts = [];
   let paragraph = null;
   let inUl = false, inOl = false;
 
   function flushParagraph(){
-    if(paragraph !== null){
-      outParts.push(`<p>${paragraph}</p>`);
-      paragraph = null;
-    }
+    if(paragraph !== null){ outParts.push(`<p>${paragraph}</p>`); paragraph = null; }
   }
 
   for(let i = 0; i < lines.length; i++){
     let line = lines[i];
-
-    // heading
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
     if(headingMatch){
       flushParagraph();
@@ -587,161 +376,92 @@ function markdownToHtml(input){
       outParts.push(`<h${level}>${inlineFormatting(escapeHtml(headingMatch[2]))}</h${level}>`);
       continue;
     }
-
-    // table detection
     if(line.indexOf('|') !== -1 && i + 1 < lines.length){
       const sepLine = lines[i+1];
-      const sepMatch = sepLine.match(/^\s*\|?\s*(:?-+:?\s*)(\|\s*:?-+:?\s*)+\|?\s*$/);
-      if(sepMatch){
+      if(sepLine.match(/^\s*\|?\s*(:?-+:?\s*)(\|\s*:?-+:?\s*)+\|?\s*$/)){
         flushParagraph();
         if(inUl){ outParts.push("</ul>"); inUl = false; }
         if(inOl){ outParts.push("</ol>"); inOl = false; }
-
         function splitRow(row){
           const parts = row.split('|').map(s => s.trim());
-          if(parts.length > 0 && parts[0] === "") parts.shift();
-          if(parts.length > 0 && parts[parts.length-1] === "") parts.pop();
+          if(parts.length>0&&parts[0]==="") parts.shift();
+          if(parts.length>0&&parts[parts.length-1]==="") parts.pop();
           return parts;
         }
         const headerCells = splitRow(line);
         const bodyRows = [];
         let j = i + 2;
         for(; j < lines.length; j++){
-          const r = lines[j];
-          if(r.trim() === "") break;
-          if(r.indexOf('|') === -1) break;
+          const r = lines[j]; if(r.trim() === "" || r.indexOf('|') === -1) break;
           bodyRows.push(splitRow(r));
         }
-
-        let tableHtml = "<table>";
-        tableHtml += "<thead><tr>";
-        for(const hc of headerCells){
-          tableHtml += `<th>${inlineFormatting(escapeHtml(hc))}</th>`;
-        }
+        let tableHtml = "<table><thead><tr>";
+        for(const hc of headerCells) tableHtml += `<th>${inlineFormatting(escapeHtml(hc))}</th>`;
         tableHtml += "</tr></thead>";
         if(bodyRows.length){
           tableHtml += "<tbody>";
           for(const brow of bodyRows){
             tableHtml += "<tr>";
-            for(const cell of brow){
-              tableHtml += `<td>${inlineFormatting(escapeHtml(cell))}</td>`;
-            }
+            for(const cell of brow) tableHtml += `<td>${inlineFormatting(escapeHtml(cell))}</td>`;
             tableHtml += "</tr>";
           }
           tableHtml += "</tbody>";
         }
         tableHtml += "</table>";
         outParts.push(tableHtml);
-
         i = j - 1;
         continue;
       }
     }
-
-    // blockquote
     if(line.trim().startsWith(">")){
       flushParagraph();
       if(inUl){ outParts.push("</ul>"); inUl = false; }
       if(inOl){ outParts.push("</ol>"); inOl = false; }
-      const inner = line.replace(/^\s*>\s?/, "");
-      outParts.push(`<blockquote>${inlineFormatting(escapeHtml(inner))}</blockquote>`);
+      outParts.push(`<blockquote>${inlineFormatting(escapeHtml(line.replace(/^\s*>\s?/, "")))}</blockquote>`);
       continue;
     }
-
-    // unordered list
     const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
     if(ulMatch){
       flushParagraph();
       if(inOl){ outParts.push("</ol>"); inOl = false; }
-      if(!inUl){
-        outParts.push("<ul>");
-        inUl = true;
-      }
+      if(!inUl){ outParts.push("<ul>"); inUl = true; }
       outParts.push(`<li>${inlineFormatting(escapeHtml(ulMatch[1]))}</li>`);
       continue;
-    } else if(inUl && line.trim() === ""){
-      outParts.push("</ul>");
-      inUl = false;
-      continue;
-    }
-
-    // ordered list
+    } else if(inUl && line.trim() === ""){ outParts.push("</ul>"); inUl = false; continue; }
     const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
     if(olMatch){
       flushParagraph();
       if(inUl){ outParts.push("</ul>"); inUl = false; }
-      if(!inOl){
-        outParts.push("<ol>");
-        inOl = true;
-      }
+      if(!inOl){ outParts.push("<ol>"); inOl = true; }
       outParts.push(`<li>${inlineFormatting(escapeHtml(olMatch[1]))}</li>`);
       continue;
-    } else if(inOl && line.trim() === ""){
-      outParts.push("</ol>");
-      inOl = false;
-      continue;
-    }
+    } else if(inOl && line.trim() === ""){ outParts.push("</ol>"); inOl = false; continue; }
 
-    // 空行 -> 段落分隔
-    if(line.trim() === ""){
-      flushParagraph();
-      continue;
-    }
-
-    // 普通文本行：合并到当前 paragraph
+    if(line.trim() === ""){ flushParagraph(); continue; }
     const formatted = inlineFormatting(escapeHtml(line.trim()));
-    if(paragraph === null){
-      paragraph = formatted;
-    } else {
-      paragraph += " " + formatted;
-    }
+    paragraph = (paragraph === null) ? formatted : paragraph + " " + formatted;
   }
-
   flushParagraph();
   if(inUl) outParts.push("</ul>");
   if(inOl) outParts.push("</ol>");
-
   let html = outParts.join("\n");
-
-  // 恢复代码块
   html = html.replace(/@@CODEBLOCK_(\d+)@@/g, (m, idx) => {
-    const cb = codeBlocks[Number(idx)];
-    if(!cb) return "";
-    const escapedCode = escapeHtml(cb.code);
+    const cb = codeBlocks[Number(idx)]; if(!cb) return "";
     const langClass = cb.lang ? ` class="language-${escapeHtml(cb.lang)}"` : "";
-    return `<pre><code${langClass}>${escapedCode}</code></pre>`;
+    return `<pre><code${langClass}>${escapeHtml(cb.code)}</code></pre>`;
   });
-
   return html;
 }
 
 function inlineFormatting(escapedText){
   if(!escapedText) return "";
-
   const codePlaceholders = [];
   escapedText = escapedText.replace(/`([^`]+)`/g, (m, code) => {
-    const idx = codePlaceholders.length;
-    codePlaceholders.push(code);
-    return `@@INLINECODE_${idx}@@`;
+    codePlaceholders.push(code); return `@@INLINECODE_${codePlaceholders.length-1}@@`;
   });
-
-  escapedText = escapedText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text, url) => {
-    const safeText = text; 
-    const safeUrl = (/^(https?:\/\/|mailto:)/i.test(url) ? escapeHtml(url) : "#");
-    return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeText}</a>`;
-  });
-
-  escapedText = escapedText.replace(/\*\*(.+?)\*\*/g, (m, t) => `<strong>${t}</strong>`);
-
-  escapedText = escapedText.replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, (m, a, t, b) => {
-    return `${a}<em>${t}</em>${b}`;
-  });
-
-  escapedText = escapedText.replace(/@@INLINECODE_(\d+)@@/g, (m, idx) => {
-    const code = codePlaceholders[Number(idx)];
-    return `<code class="inline">${code}</code>`;
-  });
-
+  escapedText = escapedText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) => `<a href="${(/^(https?:\/\/|mailto:)/i.test(u)?escapeHtml(u):"#")}" target="_blank">${t}</a>`);
+  escapedText = escapedText.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, "$1<em>$2</em>$3");
+  escapedText = escapedText.replace(/@@INLINECODE_(\d+)@@/g, (m, idx) => `<code class="inline">${codePlaceholders[Number(idx)]}</code>`);
   return escapedText;
 }
 
@@ -758,11 +478,7 @@ function renderMessages() {
       meta.className = "meta";
       const nickWrap = document.createElement("div");
       nickWrap.className = "nick";
-
-      const nick = document.createElement("span");
-      nick.textContent = aiNickEl.value || "AI";
-
-      nickWrap.appendChild(nick);
+      nickWrap.innerHTML = `<span>${escapeHtml(aiNickEl.value || "AI")}</span>`;
       meta.appendChild(nickWrap);
 
       if(m.content==="_typing"){
@@ -778,7 +494,6 @@ function renderMessages() {
     }
 
     const content = document.createElement("div");
-
     if (m.role === "user") {
       content.textContent = m.content;
       el.appendChild(content);
@@ -787,159 +502,132 @@ function renderMessages() {
       el.appendChild(content);
 
       if(window.renderMathInElement){
-        try{
-          renderMathInElement(content, {
-            delimiters: [
-              {left: "\\(", right: "\\)", display: false},
-              {left: "\\[", right: "\\]", display: true}
-            ],
-            throwOnError: false
-          });
-        }catch(e){
-          console.warn("Math render error:", e);
-        }
+        try{ renderMathInElement(content, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
       }
 
+      // 渲染思维链
       if(m.reasoning){
         const toggleWrap = document.createElement("div");
         toggleWrap.className = "reasoning-toggle";
-
-        const label = document.createElement("div");
-        label.className = "reason-label";
-        label.textContent = "深度思考 Reasoning";
-
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = m.reasonCollapsed ? "展开思维链" : "收起思考链";
-        btn.addEventListener("click", ()=>{
+        toggleWrap.innerHTML = `<div class="reason-label">深度思考 Reasoning</div><button type="button">${m.reasonCollapsed ? "展开思维链" : "收起思考链"}</button>`;
+        toggleWrap.querySelector("button").addEventListener("click", ()=>{
           m.reasonCollapsed = !m.reasonCollapsed;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
           renderMessages();
         });
-
-        toggleWrap.appendChild(label);
-        toggleWrap.appendChild(btn);
         el.appendChild(toggleWrap);
-
         const rbox = document.createElement("div");
         rbox.className = "reasoning-box";
-
-        if(m.reasonCollapsed){
-          rbox.style.display = "none";
-        } else {
-          rbox.style.display = "";
-          rbox.style.boxShadow = "none";
-          rbox.innerHTML = markdownToHtml(m.reasoning || "");
-
-          if(window.renderMathInElement){
-            try{
-              renderMathInElement(rbox, {
-                delimiters: [
-                  {left: "\\(", right: "\\)", display: false},
-                  {left: "\\[", right: "\\]", display: true}
-                ],
-                throwOnError: false
-              });
-            }catch(e){}
-          }
+        rbox.style.display = m.reasonCollapsed ? "none" : "";
+        rbox.innerHTML = markdownToHtml(m.reasoning || "");
+        if(!m.reasonCollapsed && window.renderMathInElement){
+           try{ renderMathInElement(rbox, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
         }
         el.appendChild(rbox);
       }
-    }
 
+      // 渲染记忆更新提示 (Fixed below the message)
+      if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted){
+         const memBox = document.createElement("div");
+         memBox.className = "memory-notice-box";
+         
+         const header = document.createElement("div");
+         header.className = "memory-notice-header";
+         header.innerHTML = `<span>✨ 记住了新的信息</span><button class="memory-notice-btn">展开详情</button>`;
+         
+         const details = document.createElement("div");
+         details.className = "memory-notice-content";
+         m.memoryInfo.logs.forEach(log => {
+             const line = document.createElement("div");
+             line.className = "memory-log-line";
+             line.textContent = "• " + log;
+             details.appendChild(line);
+         });
+
+         const undoBtn = document.createElement("button");
+         undoBtn.className = "memory-undo-btn";
+         undoBtn.textContent = "撤销 (Undo)";
+         undoBtn.addEventListener("click", () => {
+             // 执行撤销
+             if(m.memoryInfo.backup){
+                 memories = [...m.memoryInfo.backup];
+                 saveMemoriesToStorage();
+                 m.memoryInfo.reverted = true; // 标记已撤销
+                 localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+                 renderMessages();
+                 alert("已恢复到该对话前的记忆状态。");
+             }
+         });
+         details.appendChild(undoBtn);
+
+         // Toggle logic
+         header.querySelector("button").addEventListener("click", (e) => {
+             const isHidden = details.style.display === "none" || details.style.display === "";
+             details.style.display = isHidden ? "block" : "none";
+             e.target.textContent = isHidden ? "收起详情" : "展开详情";
+         });
+
+         memBox.appendChild(header);
+         memBox.appendChild(details);
+         el.appendChild(memBox);
+      } else if (m.memoryInfo && m.memoryInfo.reverted) {
+          const restoredMsg = document.createElement("div");
+          restoredMsg.className = "memory-notice-box";
+          restoredMsg.innerHTML = `<div class="memory-restored-text">↩️ 已撤销此次记忆更新</div>`;
+          el.appendChild(restoredMsg);
+      }
+    }
     msgsEl.appendChild(el);
   }
 
   const spacer = document.createElement("div");
   spacer.className = "messages-spacer";
   msgsEl.appendChild(spacer);
-
   const container = msgsEl.parentElement;
   container.scrollTop = container.scrollHeight;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-
   enhanceCodeBlocks();
 }
 
 function enhanceCodeBlocks(){
-  const pres = msgsEl.querySelectorAll("pre");
-  pres.forEach(pre => {
+  msgsEl.querySelectorAll("pre").forEach(pre => {
     if(pre.dataset.enhanced === "1") return;
     pre.dataset.enhanced = "1";
-
     const codeEl = pre.querySelector("code");
     if(!codeEl) return;
-
     let langLabel = "";
     const classList = Array.from(codeEl.classList || []);
     const langCls = classList.find(c => /^language-/.test(c) || /^hljs-/.test(c));
-    if(langCls){
-      langLabel = langCls.replace(/^language-/, "").replace(/^hljs-/, "");
-    } else {
-      try {
-        const detected = hljs.highlightAuto(codeEl.textContent || "");
-        if(detected && detected.language) langLabel = detected.language;
-      } catch(e){}
-    }
+    if(langCls) langLabel = langCls.replace(/^language-/, "").replace(/^hljs-/, "");
+    else try { const detected = hljs.highlightAuto(codeEl.textContent || ""); if(detected?.language) langLabel = detected.language; } catch(e){}
 
     const controls = document.createElement("div");
     controls.className = "code-controls";
-
     if(langLabel){
       const lb = document.createElement("div");
       lb.className = "lang-badge";
       lb.textContent = langLabel;
       controls.appendChild(lb);
     }
-
     const copyBtn = document.createElement("button");
     copyBtn.className = "copy-btn";
-    copyBtn.type = "button";
-    copyBtn.title = "复制代码";
     copyBtn.textContent = "Copy";
+    copyBtn.onclick = async () => {
+      try{ await navigator.clipboard.writeText(codeEl.textContent||""); copyBtn.textContent="已复制"; setTimeout(()=>copyBtn.textContent="Copy",1200); }
+      catch(e){ alert("复制失败"); }
+    };
     controls.appendChild(copyBtn);
-
     pre.appendChild(controls);
-
-    copyBtn.addEventListener("click", async () => {
-      const codeText = codeEl.textContent || "";
-      try{
-        await navigator.clipboard.writeText(codeText);
-        const original = copyBtn.textContent;
-        copyBtn.textContent = "已复制";
-        setTimeout(()=> copyBtn.textContent = original, 1200);
-      }catch(e){
-        const ta = document.createElement("textarea");
-        ta.value = codeText;
-        document.body.appendChild(ta);
-        ta.select();
-        try{
-          document.execCommand('copy');
-          const original = copyBtn.textContent;
-          copyBtn.textContent = "已复制";
-          setTimeout(()=> copyBtn.textContent = original, 1200);
-        }catch(err){
-          alert("复制失败，请手动复制代码");
-        } finally {
-          document.body.removeChild(ta);
-        }
-      }
-    });
-
-    try{
-      hljs.highlightElement(codeEl);
-    }catch(e){}
+    try{ hljs.highlightElement(codeEl); }catch(e){}
   });
 }
 
 function addMessage(role, content, extra = {}) {
   const msg = Object.assign({role, content}, extra);
   if(!msg.id) msg.id = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-
   if(msg.role === "assistant" && typeof msg.reasonCollapsed === "undefined"){
-    msg.reasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed()) ? true : false;
+    msg.reasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
   }
-
   messages.push(msg);
   renderMessages();
 }
@@ -947,8 +635,7 @@ function addMessage(role, content, extra = {}) {
 function getBeijingTime(){
   const now = new Date();
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const bj = new Date(utc + 8*3600*1000);
-  return bj.toLocaleString("zh-CN", {hour12:false});
+  return new Date(utc + 8*3600*1000).toLocaleString("zh-CN", {hour12:false});
 }
 
 function loadSettings(){
@@ -960,8 +647,7 @@ function loadSettings(){
   if(typeof s.reasoningEnabled !== "undefined") reasoningToggleEl.checked = !!s.reasoningEnabled;
   if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
   if(typeof s.memoryEnabled !== "undefined") memoryToggleEl.checked = !!s.memoryEnabled;
-  aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
-  signatureEl.textContent = signatureInputEl.value || "";
+  headerTitleUpdate();
 }
 
 function saveSettings(){
@@ -978,165 +664,98 @@ function saveSettings(){
   headerTitleUpdate();
 }
 
-function getApiKey(){
-  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  return s.apiKey || "";
-}
-function isReasoningEnabled(){
-  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  return !!s.reasoningEnabled;
-}
-function isDefaultReasonCollapsed(){
-  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  return !!s.defaultReasonCollapsed;
-}
-function isMemoryEnabled(){
-    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    return !!s.memoryEnabled;
-}
-
+function getApiKey(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiKey || ""; }
+function isReasoningEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").reasoningEnabled; }
+function isDefaultReasonCollapsed(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").defaultReasonCollapsed; }
+function isMemoryEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").memoryEnabled; }
 function headerTitleUpdate(){
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
   signatureEl.textContent = signatureInputEl.value || "";
 }
 
 /* ============ 记忆管理功能 ============ */
-
-// 渲染记忆列表到管理界面
 function renderMemoryList(){
   memoryListContainer.innerHTML = "";
   if(memories.length === 0){
     const empty = document.createElement("div");
-    empty.style.color = "#8b949e";
-    empty.style.textAlign = "center";
-    empty.style.padding = "10px";
-    empty.style.fontSize = "13px";
+    empty.style.color = "#8b949e"; empty.style.textAlign = "center"; empty.style.padding = "10px"; empty.style.fontSize = "13px";
     empty.textContent = "暂无记忆";
     memoryListContainer.appendChild(empty);
     return;
   }
-  
   memories.forEach((mem, index) => {
     const item = document.createElement("div");
     item.className = "memory-item";
-    
     const idx = document.createElement("span");
     idx.className = "memory-index";
     idx.textContent = (index + 1) + ".";
-    
-    // 允许在列表里直接编辑（简化版：Input）
     const input = document.createElement("input");
     input.type = "text";
-    input.value = typeof mem === 'string' ? mem : JSON.stringify(mem);
-    input.style.flex="1";
-    input.style.background = "transparent";
-    input.style.border = "none";
-    input.style.color="#ddd";
-    input.style.fontSize="13px";
-    input.style.outline="none";
-    // 更新记忆内容的事件
-    input.addEventListener("change", (e)=>{
-       memories[index] = e.target.value;
-    });
-
+    input.value = mem;
+    input.style.flex="1"; input.style.background="transparent"; input.style.border="none"; input.style.color="#ddd"; input.style.fontSize="13px"; input.style.outline="none";
+    input.addEventListener("change", (e)=>{ memories[index] = e.target.value; });
     const delBtn = document.createElement("button");
     delBtn.className = "memory-btn";
     delBtn.innerHTML = "×";
-    delBtn.title = "删除这条记忆";
-    delBtn.onclick = () => {
-      memories.splice(index, 1);
-      renderMemoryList();
-    };
-    
-    item.appendChild(idx);
-    item.appendChild(input);
-    item.appendChild(delBtn);
+    delBtn.onclick = () => { memories.splice(index, 1); renderMemoryList(); };
+    item.appendChild(idx); item.appendChild(input); item.appendChild(delBtn);
     memoryListContainer.appendChild(item);
   });
 }
+function saveMemoriesToStorage(){ localStorage.setItem(MEMORY_KEY, JSON.stringify(memories)); }
 
-// 保存记忆到 localStorage
-function saveMemoriesToStorage(){
-    localStorage.setItem(MEMORY_KEY, JSON.stringify(memories));
-}
-
-// 记忆管理弹窗事件
 openMemoryManagerBtn.addEventListener("click", () => {
   renderMemoryList();
-  settingsModal.style.display = "none"; // 关闭设置
+  settingsModal.style.display = "none";
   memoryModal.style.display = "flex";
 });
-
 closeMemoryModalBtn.addEventListener("click", () => {
   memoryModal.style.display = "none";
-  // 重新打开设置（提升体验）
   settingsModal.style.display = "flex";
 });
-
 saveMemoryModalBtn.addEventListener("click", () => {
   saveMemoriesToStorage();
   memoryModal.style.display = "none";
 });
 
-// 手动添加记忆
+// 手动添加记忆 (Fix Bug 3)
 manualMemoryInput.addEventListener("keydown", (e) => {
   if(e.key === "Enter" && manualMemoryInput.value.trim()){
     memories.push(manualMemoryInput.value.trim());
+    saveMemoriesToStorage(); // 必须立即保存，否则刷新消失
     manualMemoryInput.value = "";
     renderMemoryList();
   }
 });
 
-/* ============ 记忆解析与 Toast 逻辑 ============ */
-
-// 显示记忆更新提示
-function showMemoryToast(msg){
-  // 隐藏之前的
-  memoryToast.style.display = "none";
-  setTimeout(() => {
-     memoryToast.style.display = "flex";
-     toastDetails.style.display = "none"; // 默认收起
-     toastToggleBtn.textContent = "展开";
-     toastContentText.innerHTML = inlineFormatting(escapeHtml(msg));
-  }, 100);
-}
-
-// 记忆解析器
-function parseAndExecuteMemoryTags(text) {
-  let hasUpdate = false;
-  let logText = "";
-  
-  // 保存当前状态用于撤销
-  previousMemories = JSON.parse(JSON.stringify(memories));
-  
-  // 正则匹配：[UPDATE_MEMORY:"内容"]
-  // 注意：AI可能会输出换行，正则需谨慎。这里假设单行或简单多行。
-  // 使用循环匹配以处理多次更新
-  
+/* ============ 记忆解析器 ============ */
+// 解析文本中的记忆标签，执行更新，返回清洗后的文本和日志
+function executeMemoryTags(text) {
   const updateRegex = /\[UPDATE_MEMORY:"(.*?)"\]/g;
   const setDateRegex = /\[SETDATE_MEMORY:"(.*?)",\s*number:"(\d+)"\]/g;
   
   let newText = text;
+  let logs = [];
+  let hasUpdate = false;
   
-  // 处理 UPDATE_MEMORY
+  // 备份当前记忆，用于Undo
+  const backup = [...memories];
+
   let match;
   while ((match = updateRegex.exec(text)) !== null) {
       const content = match[1];
       memories.push(content);
+      logs.push(`新增: ${content}`);
       hasUpdate = true;
-      logText += `新增记忆: ${content}\n`;
   }
-  
-  // 处理 SETDATE_MEMORY
-  // 重置 regex lastIndex 并不需要，因为是不同的 regex
   while ((match = setDateRegex.exec(text)) !== null) {
       const content = match[1];
       const num = parseInt(match[2]);
       if (!isNaN(num) && num > 0 && num <= memories.length) {
           const old = memories[num - 1];
           memories[num - 1] = content;
+          logs.push(`修改 #${num}: ${old} -> ${content}`);
           hasUpdate = true;
-          logText += `修改记忆 #${num}: ${old} -> ${content}\n`;
       }
   }
   
@@ -1146,31 +765,15 @@ function parseAndExecuteMemoryTags(text) {
   
   if (hasUpdate) {
       saveMemoriesToStorage();
-      showMemoryToast(logText.trim());
   }
   
-  return newText;
+  return {
+      cleanedText: newText,
+      logs: logs,
+      backup: backup,
+      hasUpdate: hasUpdate
+  };
 }
-
-// Toast 交互
-toastToggleBtn.addEventListener("click", () => {
-    if(toastDetails.style.display === "none"){
-        toastDetails.style.display = "block";
-        toastToggleBtn.textContent = "收起";
-    } else {
-        toastDetails.style.display = "none";
-        toastToggleBtn.textContent = "展开";
-    }
-});
-
-toastUndoBtn.addEventListener("click", () => {
-    if(previousMemories){
-        memories = previousMemories;
-        saveMemoriesToStorage();
-        memoryToast.style.display = "none";
-        alert("记忆已撤销至修改前状态。");
-    }
-});
 
 async function sendMessage(){
   const text = inputEl.value.trim();
@@ -1179,282 +782,226 @@ async function sendMessage(){
   inputEl.style.height = "44px"; 
   addMessage("user", text);
 
-  // 构建系统提示词
+  // 构建 Prompt
   let sysPrompt = `现在是 ${getBeijingTime()}（北京时间）你正在通过网页和用户聊天\n用户提示：${userPromptEl.value||""}`;
   
-  // === 注入记忆逻辑 ===
   if(isMemoryEnabled()){
      const memJson = JSON.stringify(memories);
-     const memoryInstructions = `
-你拥有长期记忆
-
-​你的记忆库：
+     sysPrompt += `
+\n你拥有长期记忆功能。
+当前记忆库：
 <memory>
 ${memJson}
 </memory>
-​行为准则：
-​记忆库中包含了用户的姓名、偏好、过去提到的重要事件等。
-​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性（例如：如果记忆里说用户叫XX，你就要以此称呼他）。
-​在对话中要自然地流露出你记得这些信息，不要像机器人一样生硬地列举。
 
-你拥有添加记忆的能力：
-​##十分重要：如果用户提到了新的重要个人信息，请在回复的末尾增加一个特殊格式：
+行为准则：
+1. 即使清空历史，也要基于记忆库保持人设和对用户的了解。
+2. 自然地体现你记得这些信息，不要生硬列举。
 
-[UPDATE_MEMORY:"增加的记忆内容"]。
-#该工具为增加记忆，当你的记忆库里没有你要记住的东西，你就可以使用这个；
+**添加/修改记忆工具**：
+如果用户提供了重要的**新**个人信息，或者要求你修改记忆，请在回复的**最前面**（必须是回复的开头）使用以下工具：
 
-[SETDATE_MEMORY:"修改后的记忆内容",number:"你要修改第几条，就把对应记忆的条数填进"]
-#该工具为更改记忆，如果你要记住的东西和之前传给你的记忆有相悖的，按照最新的进行修改
+增加记忆: [UPDATE_MEMORY:"内容"]
+修改记忆: [SETDATE_MEMORY:"内容",number:"序号"]
 
-##必须严格按照以上格式进行回复
-
-你可以记住：个人基本信息、技术偏好
-当用户要求你记住什么东西时，你应当满足
-
-禁止同时使用以上两个工具，每轮对话中只能使用一个/一次
-​​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
+重要：
+1. **必须把工具标签放在回复的第一个字符开始处**，不要在标签前说任何话。
+2. 标签后可正常回复用户。
+3. 只能检测到明确的信息变更时使用，不要记录闲聊。
 `;
-     sysPrompt += "\n" + memoryInstructions;
   }
 
   const apiMessages = [{role:"system", content: sysPrompt}];
   for(const m of messages){
     if(m.role==="assistant" && m.content==="_typing") continue;
-    if(m.role === "assistant" || m.role === "user"){
-      apiMessages.push({role:m.role, content:m.content});
-    }
+    if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
   }
 
   const placeholderId = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-  const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed()) ? true : false;
+  const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
   addMessage("assistant","_typing",{id:placeholderId, reasoning: null, reasonCollapsed: placeholderReasonCollapsed});
   let replyMessageIndex = messages.findIndex(mm => mm.id === placeholderId);
   if(replyMessageIndex === -1) replyMessageIndex = messages.length - 1;
 
   try {
     const apiKey = getApiKey();
-    if(!apiKey){
-      const reply = {role:"assistant", content: "\n[错误] 请在设置中填写 API Key 后重试。", reasoning:null, reasonCollapsed:false, id:placeholderId};
-      messages[replyMessageIndex] = reply;
-      renderMessages();
-      return;
-    }
+    if(!apiKey) throw new Error("请在设置中填写 API Key");
 
     const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
-    const url = API_BASE + "/chat/completions"; 
-    const useStream = true;
-    const bodyObj = {model: modelToUse, messages: apiMessages, stream: useStream};
-    const res = await fetch(url, {
+    const res = await fetch(API_BASE + "/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type":"application/json",
-        "Authorization":"Bearer "+apiKey
-      },
-      body: JSON.stringify(bodyObj)
+      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+apiKey },
+      body: JSON.stringify({ model: modelToUse, messages: apiMessages, stream: true })
     });
 
-    if(!res.ok){
-      let errText = `API 错误 ${res.status}`;
-      try{ const errJson = await res.json(); if(errJson.error && errJson.error.message) errText += ": "+errJson.error.message;}catch(e){}
-      throw new Error(errText);
-    }
+    if(!res.ok) throw new Error(`API Error ${res.status}`);
 
-    if(useStream && res.body){
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      if(messages[replyMessageIndex].content==="_typing"){
-        messages[replyMessageIndex] = {role:"assistant", content:"", reasoning:null, reasonCollapsed: placeholderReasonCollapsed, id:placeholderId};
-      }
-      let reply = messages[replyMessageIndex];
-      while(true){
-        const {done, value} = await reader.read();
-        if(done) break;
-        buffer += decoder.decode(value, {stream:true});
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop();
-        for(const part of parts){
-          if(!part.startsWith("data:")) continue;
-          const data = part.slice(5).trim();
-          if(!data) continue;
-          if(data==="[DONE]") continue;
-          try{
-            const obj = JSON.parse(data);
-            const delta = obj.choices?.[0]?.delta || {};
-            if(delta.content){
-              reply.content += delta.content;
-              messages[replyMessageIndex] = reply;
-              renderMessages();
-            }
-            if(delta.reasoning_content){
-              reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
-              messages[replyMessageIndex] = reply;
-              renderMessages();
-            }
-            const finishMessage = obj.choices?.[0]?.message;
-            if(finishMessage){
-              if(finishMessage.content) reply.content += finishMessage.content;
-              if(finishMessage.reasoning_content) reply.reasoning = (reply.reasoning || "") + finishMessage.reasoning_content;
-              messages[replyMessageIndex] = reply;
-              renderMessages();
-            }
-          }catch(e){}
-        }
-      }
-      
-      // === 流式结束后：处理记忆标签 ===
-      if(isMemoryEnabled()){
-          // 解析并执行
-          const originalContent = reply.content;
-          const cleanedContent = parseAndExecuteMemoryTags(originalContent);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    
+    // 初始化回复对象
+    let reply = {
+        role: "assistant", 
+        content: "", 
+        reasoning: null, 
+        reasonCollapsed: placeholderReasonCollapsed, 
+        id: placeholderId,
+        // 记忆处理状态
+        memoryInfo: { logs: [], backup: [], reverted: false } 
+    };
+    messages[replyMessageIndex] = reply;
+
+    let buffer = ""; 
+    let checkTags = isMemoryEnabled(); // 仅在开启记忆时检查
+    let streamBuffer = ""; // 用于检测开头标签的缓冲
+
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+
+      for(const part of parts){
+        if(!part.startsWith("data:")) continue;
+        const data = part.slice(5).trim();
+        if(!data || data==="[DONE]") continue;
+        try{
+          const obj = JSON.parse(data);
+          const delta = obj.choices?.[0]?.delta || {};
           
-          // 如果内容发生了变化（去除了标签），更新消息并重新渲染
-          if(cleanedContent !== originalContent){
-              reply.content = cleanedContent;
-              messages[replyMessageIndex] = reply;
-              renderMessages();
+          // 1. 处理深度思考 (直接透传，不涉及记忆标签)
+          if(delta.reasoning_content){
+            reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
+            messages[replyMessageIndex] = reply;
+            renderMessages();
           }
-      }
 
-      messages[replyMessageIndex] = reply;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-      renderMessages();
-    } else {
-      const j = await res.json();
-      const choice = j.choices && j.choices[0];
-      let assistantText = "";
-      let reasoningText = null;
-      if(choice){
-        if(choice.message && typeof choice.message.content === "string"){
-          assistantText = choice.message.content;
-        } else if(choice.text){ 
-          assistantText = choice.text;
-        }
-        if(choice.message && typeof choice.message.reasoning_content === "string"){
-          reasoningText = choice.message.reasoning_content;
-        } else if(choice.reasoning_content){
-          reasoningText = choice.reasoning_content;
-        }
-      }
-      
-      // === 非流式：处理记忆标签 ===
-      let finalContent = assistantText || "[空回复]";
-      if(isMemoryEnabled() && assistantText){
-         finalContent = parseAndExecuteMemoryTags(assistantText);
-      }
+          // 2. 处理正文内容 (涉及标签检测算法)
+          if(delta.content){
+            const newContent = delta.content;
 
-      const reply = {role:"assistant", content: finalContent, reasoning: reasoningText, reasonCollapsed: (reasoningText ? isDefaultReasonCollapsed() : false), id:placeholderId};
-      messages[replyMessageIndex] = reply;
-      renderMessages();
+            if(checkTags){
+                // 将新内容加入缓冲区
+                streamBuffer += newContent;
+
+                // 检查缓冲区开头是否可能是标签
+                // 如果缓冲区开头不是 '['，说明不是标签，直接输出并停止检查
+                if(!streamBuffer.trimStart().startsWith("[")){
+                    reply.content += streamBuffer;
+                    streamBuffer = "";
+                    checkTags = false; // 后续不再检查，直接透传
+                } else {
+                    // 开头是 '['，检查是否闭合
+                    // 可能有多个标签连续：[...][...]
+                    while(true) {
+                        const startIndex = streamBuffer.indexOf("[");
+                        const endIndex = streamBuffer.indexOf("]");
+                        
+                        if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
+                            // 提取完整标签字符串
+                            const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
+                            
+                            // 执行标签解析
+                            const result = executeMemoryTags(tagStr);
+                            
+                            if(result.hasUpdate){
+                                // 是有效记忆标签，记录日志，不输出到 content
+                                if(!reply.memoryInfo.backup.length) reply.memoryInfo.backup = result.backup;
+                                reply.memoryInfo.logs.push(...result.logs);
+                            } else {
+                                // 虽然是 [...] 格式但不是我们的指令，当作普通文本输出
+                                reply.content += tagStr; 
+                            }
+                            
+                            // 从缓冲区移除已处理部分
+                            streamBuffer = streamBuffer.substring(endIndex + 1);
+                        } else {
+                            // 没有闭合，或者缓冲区没剩下 tag 了
+                            break;
+                        }
+                    }
+                    
+                    // 经过循环处理后，如果 streamBuffer 还是以 [ 开头，说明标签未传输完整，继续等待下一帧
+                    // 如果 streamBuffer 不以 [ 开头了（可能剩下了换行符或正文开头），则输出剩余部分并停止检查
+                    if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
+                        reply.content += streamBuffer;
+                        streamBuffer = "";
+                        checkTags = false;
+                    }
+                }
+            } else {
+                // 不需要检查标签，直接追加
+                reply.content += newContent;
+            }
+            
+            messages[replyMessageIndex] = reply;
+            renderMessages();
+          }
+        }catch(e){}
+      }
     }
+    
+    // 流结束后，如果缓冲区还有残留（例如未闭合的标签，虽不应该发生），全部输出
+    if(streamBuffer){
+        reply.content += streamBuffer;
+        messages[replyMessageIndex] = reply;
+        renderMessages();
+    }
+    
   }catch(e){
-    const errMsg = {role:"assistant", content: "\n[错误] " + e.message, reasoning:null, reasonCollapsed:false, id:placeholderId};
-    messages[replyMessageIndex] = errMsg;
+    messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
     renderMessages();
   }
 }
 
-/* ---------- 弹窗逻辑 ---------- */
-openSettingsBtn.addEventListener("click", ()=>{
-  loadSettings();
-  settingsModal.style.display="flex";
-});
-closeSettingsBtn.addEventListener("click", ()=>{settingsModal.style.display="none";});
-saveSettingsBtn.addEventListener("click", ()=>{
-  saveSettings();
-  settingsModal.style.display="none";
-  renderMessages();
-});
+/* ---------- UI Events ---------- */
+openSettingsBtn.addEventListener("click", ()=>{ loadSettings(); settingsModal.style.display="flex"; });
+closeSettingsBtn.addEventListener("click", ()=>{ settingsModal.style.display="none"; });
+saveSettingsBtn.addEventListener("click", ()=>{ saveSettings(); settingsModal.style.display="none"; renderMessages(); });
 
-/* ---------- 清空历史 (替换为 Modal) ---------- */
-clearHistoryBtn.addEventListener("click", ()=>{
-  // 打开确认弹窗
-  confirmModal.style.display = "flex";
-});
+clearHistoryBtn.addEventListener("click", ()=>{ confirmModal.style.display = "flex"; });
+confirmClearBtn.addEventListener("click", ()=>{ messages = []; localStorage.removeItem(STORAGE_KEY); renderMessages(); confirmModal.style.display = "none"; });
+cancelClearBtn.addEventListener("click", ()=>{ confirmModal.style.display = "none"; });
 
-confirmClearBtn.addEventListener("click", ()=>{
-    messages = [];
-    localStorage.removeItem(STORAGE_KEY);
-    renderMessages();
-    confirmModal.style.display = "none";
-});
-
-cancelClearBtn.addEventListener("click", ()=>{
-    confirmModal.style.display = "none";
-});
-
-
-/* ---------- 发送事件 & 输入高度 & collapsed 行为 ---------- */
 sendBtn.addEventListener("click", sendMessage);
-
 inputEl.addEventListener("keydown", (e)=>{
-  if((e.key === "Enter") && (e.ctrlKey || e.metaKey)){
-    e.preventDefault();
-    sendMessage();
-    setExpandedState(false);
-  }
+  if((e.key === "Enter") && (e.ctrlKey || e.metaKey)){ e.preventDefault(); sendMessage(); setExpandedState(false); }
 });
 inputEl.addEventListener('input', ()=>{
   setExpandedState(true);
-  inputEl.style.height = "auto";
-  inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
+  inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
 });
 
-/* ---------- 视觉视口（VisualViewport）用于处理键盘高度，避免间隙 ---------- */
 const BASE_BOTTOM_HEIGHT = 76; 
 function updateForViewport(){
   const vv = window.visualViewport;
   let kb = 0;
-  if(vv){
-    kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-  } else {
-    kb = Math.max(0, window.innerHeight - document.documentElement.clientHeight);
-  }
+  if(vv){ kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0)); }
+  else { kb = Math.max(0, window.innerHeight - document.documentElement.clientHeight); }
   bottomEl.style.bottom = (kb > 0 ? kb + 'px' : '0px');
   document.documentElement.style.setProperty('--bottom-height', `${BASE_BOTTOM_HEIGHT + kb}px`);
   setTimeout(()=>{ const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 120);
 }
-
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize', updateForViewport, {passive:true});
   window.visualViewport.addEventListener('scroll', updateForViewport, {passive:true});
 }
 window.addEventListener('resize', updateForViewport);
-inputEl.addEventListener('focus', ()=>{
-  setExpandedState(true);
-  setTimeout(()=>{ updateForViewport(); const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 250);
-});
-inputEl.addEventListener('blur', ()=>{ 
-  setTimeout(()=>{ if(!inputEl.value.trim()) setExpandedState(false); updateForViewport(); }, 160); 
-});
+inputEl.addEventListener('focus', ()=>{ setExpandedState(true); setTimeout(()=>{ updateForViewport(); msgsEl.parentElement.scrollTop = msgsEl.parentElement.scrollHeight; }, 250); });
+inputEl.addEventListener('blur', ()=>{ setTimeout(()=>{ if(!inputEl.value.trim()) setExpandedState(false); updateForViewport(); }, 160); });
 
 function setExpandedState(expand){
-  if(expand){
-    inputEl.classList.remove("collapsed");
-    inputEl.classList.add("expanded");
-    inputEl.style.width = "";
-  } else {
-    if(inputEl.value && inputEl.value.trim()) return;
-    inputEl.classList.remove("expanded");
-    inputEl.classList.add("collapsed");
-    inputEl.style.height = "44px";
-    inputEl.style.width = ""; 
-  }
+  if(expand){ inputEl.classList.remove("collapsed"); inputEl.classList.add("expanded"); inputEl.style.width = ""; }
+  else { if(inputEl.value && inputEl.value.trim()) return; inputEl.classList.remove("expanded"); inputEl.classList.add("collapsed"); inputEl.style.height = "44px"; inputEl.style.width = ""; }
 }
 
 window.addEventListener("load", ()=>{
   loadSettings();
-  headerTitleUpdate();
-  if(!inputEl.value || !inputEl.value.trim()){
-    inputEl.classList.add("collapsed");
-  } else {
-    inputEl.classList.add("expanded");
-  }
+  if(!inputEl.value || !inputEl.value.trim()) inputEl.classList.add("collapsed"); else inputEl.classList.add("expanded");
   renderMessages();
   updateForViewport();
 });
-
-window.addEventListener('orientationchange', ()=> setTimeout(updateForViewport, 300));
 </script>
 </body>
 </html>
