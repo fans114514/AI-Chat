@@ -169,18 +169,42 @@
 
   @media (max-height:600px){ .modal-content{max-height:80vh;overflow:auto} }
 
-  /* Reasoning */
+  /* Reasoning (已修复空白问题) */
   .reasoning-box {
-    margin-top:8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03);
-    padding:10px; border-radius:10px; color:var(--muted); font-size:13px; line-height:1.45;
+    /* 调整 margin 和 padding 更加紧凑 */
+    margin-top: 0; 
+    margin-bottom: 10px; /* 增加底部间距，与正文区分 */
+    background: rgba(255,255,255,0.02); 
+    border: 1px solid rgba(255,255,255,0.03);
+    padding: 8px 12px; /* 减小内边距 */
+    border-radius: 10px; 
+    color: var(--muted); 
+    font-size: 13px; 
+    line-height: 1.45;
   }
   /* 【新增修复】强制去除深度思考内容首尾元素的margin，解决上下空白过大问题 */
   .reasoning-box > *:first-child { margin-top: 0 !important; }
   .reasoning-box > *:last-child { margin-bottom: 0 !important; }
 
-  .reasoning-toggle { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; }
-  .reasoning-toggle button { background: transparent; color: var(--muted); border:1px solid rgba(255,255,255,0.04); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; }
+  .reasoning-toggle { 
+    display:flex; 
+    justify-content:space-between; 
+    align-items:center; 
+    gap:8px; 
+    margin-top: 2px; /* 减小顶部留白 */
+    margin-bottom: 6px; /* 标题与内容框的间距 */
+  }
+  .reasoning-toggle button { 
+    background: transparent; 
+    color: var(--muted); 
+    border: 1px solid rgba(255,255,255,0.04); 
+    padding: 4px 8px; /* 稍微减小按钮内边距 */
+    border-radius: 8px; 
+    cursor: pointer; 
+    font-size: 12px; 
+  }
   .reason-label { font-size:12px;color:var(--muted); }
+  
   textarea.collapsed { width: 160px; padding-top:8px; padding-bottom:8px; height:44px; }
   textarea.expanded { width: auto; flex:1; }
   @media (max-width:420px){ textarea.collapsed { width: 120px; } }
