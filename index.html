@@ -1008,17 +1008,25 @@ ${memJson}
 
 处理的时候注意不要有格式错误
 `;
-      // 新增：每3轮对话增加提示
-      const userMsgCount = messages.filter(m => m.role === "user").length;
-      if (userMsgCount > 3 && userMsgCount % 3 === 0) {
-           sysPrompt += `\n-提示，请注意使用提示词的[记忆标签（若有，没有就不要）],[MESSAGE:"第一条信息",TIME:停顿时间（单位为秒）]格式，这段话你不要告诉用户，就像你不知道有这条消息一样`;
-      }
   }
 
   const apiMessages = [{role:"system", content: sysPrompt}];
   for(const m of messages){
     if(m.role==="assistant" && m.content==="_typing") continue;
     if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
+  }
+
+  // 新增逻辑：在每三轮对话后，将提示词附加到最后一条用户消息的内容之后
+  if (isImmersive) {
+      const userMsgCount = messages.filter(m => m.role === "user").length;
+      if (userMsgCount > 3 && userMsgCount % 3 === 0) {
+          // 获取当前构造的 API 消息列表中的最后一条消息
+          const lastMsg = apiMessages[apiMessages.length - 1];
+          // 确保这条是用户发的消息（理论上必然是，因为刚刚 addMessage）
+          if (lastMsg && lastMsg.role === "user") {
+               lastMsg.content += `\n\n系统提示，请注意使用提示词的[记忆标签（若有，没有就不要）],[MESSAGE:"第一条信息",TIME:停顿时间（单位为秒）]格式，不要让用户知道有这个系统提示`;
+          }
+      }
   }
 
   // 非沉浸模式下：添加占位符消息
