@@ -915,7 +915,8 @@ async function processImmersiveResponse(fullText) {
     } else {
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
-            if(part.delay > 0) {
+            // 修改：如果是第一条消息（i===0），不管延迟多少都跳过等待
+            if(part.delay > 0 && i > 0) {
                 await new Promise(resolve => setTimeout(resolve, part.delay));
             }
             if(part.content.trim()) {
@@ -929,9 +930,7 @@ async function processImmersiveResponse(fullText) {
 function setInputLock(locked) {
     inputEl.disabled = locked;
     sendBtn.disabled = locked;
-    if(!locked) {
-        inputEl.focus();
-    }
+    // 修改：去除 inputEl.focus()，防止键盘自动弹出
 }
 
 async function sendMessage(){
