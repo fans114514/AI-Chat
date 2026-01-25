@@ -957,7 +957,7 @@ async function sendMessage(){
   }
 
   // 构建 Prompt
-  let sysPrompt = `现在是 ${getBeijingTime()}（北京时间），用户提示：${userPromptEl.value||""}`;
+  let sysPrompt = `现在是 ${getBeijingTime()}（北京时间二十四小时制），用户提示：${userPromptEl.value||""}`;
   
   if(isMemoryEnabled()){
      const memJson = JSON.stringify(memories);
