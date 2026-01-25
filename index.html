@@ -242,6 +242,14 @@
       <label for="apiKeyInput">API Key（本地保存）</label>
       <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
     </div>
+    
+    <div class="modal-row">
+        <label>视觉体验</label>
+        <div class="toggle-row">
+          <input id="immersiveToggle" type="checkbox" />
+          <div class="toggle-desc">沉浸模式</div>
+        </div>
+    </div>
 
     <div class="modal-row">
       <label for="reasoningToggle">深度思考</label>
@@ -297,6 +305,7 @@ const apiKeyEl = document.getElementById("apiKeyInput");
 const reasoningToggleEl = document.getElementById("reasoningToggle");
 const defaultReasonCollapsedToggleEl = document.getElementById("defaultReasonCollapsedToggle");
 const memoryToggleEl = document.getElementById("memoryToggle");
+const immersiveToggleEl = document.getElementById("immersiveToggle");
 
 // Modals
 const settingsModal = document.getElementById("settingsModal");
@@ -467,6 +476,7 @@ function inlineFormatting(escapedText){
 
 /* ------------------ 渲染消息 ------------------ */
 function renderMessages() {
+  const isImmersive = isImmersiveMode();
   msgsEl.innerHTML = "";
   for (const m of messages) {
     if(m.role==="system") continue;
@@ -505,8 +515,8 @@ function renderMessages() {
         try{ renderMathInElement(content, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
       }
 
-      // 渲染思维链
-      if(m.reasoning){
+      // 渲染思维链 (沉浸模式下不渲染)
+      if(m.reasoning && !isImmersive){
         const toggleWrap = document.createElement("div");
         toggleWrap.className = "reasoning-toggle";
         toggleWrap.innerHTML = `<div class="reason-label">深度思考 Reasoning</div><button type="button">${m.reasonCollapsed ? "展开思维链" : "收起思考链"}</button>`;
@@ -526,8 +536,8 @@ function renderMessages() {
         el.appendChild(rbox);
       }
 
-      // 渲染记忆更新提示 (Fixed below the message)
-      if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted){
+      // 渲染记忆更新提示 (沉浸模式下不渲染)
+      if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
          const memBox = document.createElement("div");
          memBox.className = "memory-notice-box";
          
@@ -548,12 +558,10 @@ function renderMessages() {
          undoBtn.className = "memory-undo-btn";
          undoBtn.textContent = "撤销";
          undoBtn.addEventListener("click", () => {
-             // 执行撤销
-             // FIX: 使用 !== null 检查，以确保即使是空数组也能正确恢复
              if(m.memoryInfo.backup !== null){
                  memories = [...m.memoryInfo.backup];
                  saveMemoriesToStorage();
-                 m.memoryInfo.reverted = true; // 标记已撤销
+                 m.memoryInfo.reverted = true; 
                  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
                  renderMessages();
                  alert("遗忘不是终点...");
@@ -561,7 +569,6 @@ function renderMessages() {
          });
          details.appendChild(undoBtn);
 
-         // Toggle logic
          header.querySelector("button").addEventListener("click", (e) => {
              const isHidden = details.style.display === "none" || details.style.display === "";
              details.style.display = isHidden ? "block" : "none";
@@ -571,7 +578,7 @@ function renderMessages() {
          memBox.appendChild(header);
          memBox.appendChild(details);
          el.appendChild(memBox);
-      } else if (m.memoryInfo && m.memoryInfo.reverted) {
+      } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
           const restoredMsg = document.createElement("div");
           restoredMsg.className = "memory-notice-box";
           restoredMsg.innerHTML = `<div class="memory-restored-text">已撤销</div>`;
@@ -648,6 +655,7 @@ function loadSettings(){
   if(typeof s.reasoningEnabled !== "undefined") reasoningToggleEl.checked = !!s.reasoningEnabled;
   if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
   if(typeof s.memoryEnabled !== "undefined") memoryToggleEl.checked = !!s.memoryEnabled;
+  if(typeof s.immersiveMode !== "undefined") immersiveToggleEl.checked = !!s.immersiveMode;
   headerTitleUpdate();
 }
 
@@ -659,7 +667,8 @@ function saveSettings(){
     apiKey: apiKeyEl.value,
     reasoningEnabled: reasoningToggleEl.checked,
     defaultReasonCollapsed: defaultReasonCollapsedToggleEl.checked,
-    memoryEnabled: memoryToggleEl.checked
+    memoryEnabled: memoryToggleEl.checked,
+    immersiveMode: immersiveToggleEl.checked
   };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   headerTitleUpdate();
@@ -669,6 +678,8 @@ function getApiKey(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}"
 function isReasoningEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").reasoningEnabled; }
 function isDefaultReasonCollapsed(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").defaultReasonCollapsed; }
 function isMemoryEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").memoryEnabled; }
+function isImmersiveMode(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").immersiveMode; }
+
 function headerTitleUpdate(){
   aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
   signatureEl.textContent = signatureInputEl.value || "";
@@ -719,18 +730,16 @@ saveMemoryModalBtn.addEventListener("click", () => {
   memoryModal.style.display = "none";
 });
 
-// 手动添加记忆 (Fix Bug 3)
 manualMemoryInput.addEventListener("keydown", (e) => {
   if(e.key === "Enter" && manualMemoryInput.value.trim()){
     memories.push(manualMemoryInput.value.trim());
-    saveMemoriesToStorage(); // 必须立即保存，否则刷新消失
+    saveMemoriesToStorage(); 
     manualMemoryInput.value = "";
     renderMemoryList();
   }
 });
 
 /* ============ 记忆解析器 ============ */
-// 解析文本中的记忆标签，执行更新，返回清洗后的文本和日志
 function executeMemoryTags(text) {
   const updateRegex = /\[UPDATE_MEMORY:"(.*?)"\]/g;
   const setDateRegex = /\[SETDATE_MEMORY:"(.*?)",\s*number:"(\d+)"\]/g;
@@ -739,7 +748,6 @@ function executeMemoryTags(text) {
   let logs = [];
   let hasUpdate = false;
   
-  // 备份当前记忆，用于Undo
   const backup = [...memories];
 
   let match;
@@ -760,7 +768,6 @@ function executeMemoryTags(text) {
       }
   }
   
-  // 移除标签
   newText = newText.replace(updateRegex, "");
   newText = newText.replace(setDateRegex, "");
   
@@ -783,6 +790,19 @@ async function sendMessage(){
   inputEl.style.height = "44px"; 
   addMessage("user", text);
 
+  // 沉浸模式下处理 UI 变化 (对方正在输入)
+  const isImmersive = isImmersiveMode();
+  let originalTitle = aiTitleTextEl.textContent;
+  let originalSig = signatureEl.textContent;
+  let immersiveTimer = null;
+
+  if (isImmersive) {
+      immersiveTimer = setTimeout(() => {
+          aiTitleTextEl.textContent = "对方正在输入...";
+          signatureEl.style.display = "none"; 
+      }, 500);
+  }
+
   // 构建 Prompt
   let sysPrompt = `现在是 ${getBeijingTime()}（北京时间），用户提示：${userPromptEl.value||""}`;
   
@@ -797,25 +817,19 @@ ${memJson}
 
 行为准则：
 ​记忆库中包含了用户的姓名、偏好、过去提到的重要事件等。
-​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性（例如：如果记忆里说用户叫XX，你就要以此称呼他）。
-​在对话中要自然地流露出你记得这些信息，不要像机器人一样生硬地列举。
+​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性。
+​在对话中要自然地流露出你记得这些信息。
 
 你拥有添加记忆的能力：
 ​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
 
 [UPDATE_MEMORY:"内容"]
-#该工具为增加记忆，当你的记忆库里没有你要记住的东西，你就可以使用这个；
+#该工具为增加记忆
 
 [SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
-#该工具为更改记忆，如果你要记住的东西和之前传给你的记忆有相悖的，按照最新的进行修改，禁止总结之前的记忆后加入新记忆，避免记忆零碎
+#该工具为更改记忆
 
 ##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
-
-你可以记住：个人基本信息、技术偏好
-当用户要求你记住什么东西时，你应当满足
-
-禁止同时使用以上两个工具，每轮对话中只能使用一个/一次
-​​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
 `;
   }
 
@@ -847,22 +861,19 @@ ${memJson}
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     
-    // 初始化回复对象
     let reply = {
         role: "assistant", 
         content: "", 
         reasoning: null, 
         reasonCollapsed: placeholderReasonCollapsed, 
         id: placeholderId,
-        // 记忆处理状态
-        // FIX: backup 初始化为 null，以便区分 "未备份" 和 "空记忆库备份"
         memoryInfo: { logs: [], backup: null, reverted: false } 
     };
     messages[replyMessageIndex] = reply;
 
     let buffer = ""; 
-    let checkTags = isMemoryEnabled(); // 仅在开启记忆时检查
-    let streamBuffer = ""; // 用于检测开头标签的缓冲
+    let checkTags = isMemoryEnabled(); 
+    let streamBuffer = ""; 
 
     while(true){
       const {done, value} = await reader.read();
@@ -879,61 +890,41 @@ ${memJson}
           const obj = JSON.parse(data);
           const delta = obj.choices?.[0]?.delta || {};
           
-          // 1. 处理深度思考 (直接透传，不涉及记忆标签)
           if(delta.reasoning_content){
             reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
             messages[replyMessageIndex] = reply;
             renderMessages();
           }
 
-          // 2. 处理正文内容 (涉及标签检测算法)
           if(delta.content){
             const newContent = delta.content;
 
             if(checkTags){
-                // 将新内容加入缓冲区
                 streamBuffer += newContent;
-
-                // 检查缓冲区开头是否可能是标签
-                // 如果缓冲区开头不是 '['，说明不是标签，直接输出并停止检查
                 if(!streamBuffer.trimStart().startsWith("[")){
                     reply.content += streamBuffer;
                     streamBuffer = "";
-                    checkTags = false; // 后续不再检查，直接透传
+                    checkTags = false; 
                 } else {
-                    // 开头是 '['，检查是否闭合
-                    // 可能有多个标签连续：[...][...]
                     while(true) {
                         const startIndex = streamBuffer.indexOf("[");
                         const endIndex = streamBuffer.indexOf("]");
                         
                         if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
-                            // 提取完整标签字符串
                             const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
-                            
-                            // 执行标签解析
                             const result = executeMemoryTags(tagStr);
                             
                             if(result.hasUpdate){
-                                // 是有效记忆标签，记录日志，不输出到 content
-                                // FIX: 仅当 backup 为 null 时才记录初始状态，避免后续更新覆盖初始备份
                                 if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
                                 reply.memoryInfo.logs.push(...result.logs);
                             } else {
-                                // 虽然是 [...] 格式但不是我们的指令，当作普通文本输出
                                 reply.content += tagStr; 
                             }
-                            
-                            // 从缓冲区移除已处理部分
                             streamBuffer = streamBuffer.substring(endIndex + 1);
                         } else {
-                            // 没有闭合，或者缓冲区没剩下 tag 了
                             break;
                         }
                     }
-                    
-                    // 经过循环处理后，如果 streamBuffer 还是以 [ 开头，说明标签未传输完整，继续等待下一帧
-                    // 如果 streamBuffer 不以 [ 开头了（可能剩下了换行符或正文开头），则输出剩余部分并停止检查
                     if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
                         reply.content += streamBuffer;
                         streamBuffer = "";
@@ -941,10 +932,8 @@ ${memJson}
                     }
                 }
             } else {
-                // 不需要检查标签，直接追加
                 reply.content += newContent;
             }
-            
             messages[replyMessageIndex] = reply;
             renderMessages();
           }
@@ -952,7 +941,6 @@ ${memJson}
       }
     }
     
-    // 流结束后，如果缓冲区还有残留（例如未闭合的标签，虽不应该发生），全部输出
     if(streamBuffer){
         reply.content += streamBuffer;
         messages[replyMessageIndex] = reply;
@@ -962,6 +950,14 @@ ${memJson}
   }catch(e){
     messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
     renderMessages();
+  } finally {
+      // 沉浸模式：恢复 UI
+      if(isImmersive) {
+          if(immersiveTimer) clearTimeout(immersiveTimer);
+          aiTitleTextEl.textContent = originalTitle; // 恢复之前的标题(昵称)
+          signatureEl.textContent = originalSig;
+          signatureEl.style.display = ""; // 恢复显示
+      }
   }
 }
 
