@@ -898,33 +898,30 @@ function executeMemoryTags(text) {
 /* ============ 沉浸模式分条消息处理 ============ */
 async function processImmersiveResponse(fullText) {
     const { cleanedText } = executeMemoryTags(fullText);
-    const splitRegex = /\[MESSAGE:"((?:[^"\\]|\\.)*?)",TIME:(\d+)\]/g;
     
-    let parts = [];
-    let match;
-    let hasMatches = false;
-
-    while ((match = splitRegex.exec(cleanedText)) !== null) {
-        hasMatches = true;
-        parts.push({
-            content: match[1].replace(/\\"/g, '"'),
-            delay: parseInt(match[2], 10)
-        });
-    }
-
-    if (!hasMatches) {
-        if(cleanedText.trim()) {
-            addMessage("assistant", cleanedText);
-        }
-    } else {
-        for (let i = 0; i < parts.length; i++) {
-            const part = parts[i];
-            // 修改：如果是第一条消息（i===0），不管延迟多少都跳过等待
-            if(part.delay > 0 && i > 0) {
-                await new Promise(resolve => setTimeout(resolve, part.delay));
+    // 匹配 [停顿:x(单位秒)] 格式，宽容匹配冒号、空格，数字
+    // 捕获组1是数字。Split 会保留捕获组。
+    const splitRegex = /\[\s*停顿[:：\s]*(\d+)[^\]]*\]/gi;
+    
+    const segments = cleanedText.split(splitRegex);
+    // 数组结构会是：[Text, DelayStr, Text, DelayStr, Text...]
+    
+    for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        
+        // 奇数索引是捕获的数字（split机制），偶数索引是文本
+        if (i % 2 === 1) {
+            let delay = parseInt(segment, 10);
+            if (isNaN(delay)) delay = 0;
+            if (delay > 7) delay = 7; // 限制最大7秒
+            
+            if (delay > 0) {
+                await new Promise(resolve => setTimeout(resolve, delay * 1000));
             }
-            if(part.content.trim()) {
-                addMessage("assistant", part.content);
+        } else {
+            // 文本内容
+            if (segment.trim()) {
+                addMessage("assistant", segment.trim());
             }
         }
     }
@@ -996,17 +993,20 @@ ${memJson}
   // 沉浸模式：注入分条回复指令
   if (isImmersive) {
       sysPrompt += `
-当你回复信息时，请将你输出的信息合理，自然的分割成多条，并且加入合适的停顿时间（单位为毫秒），格式：
+当你回复信息时，你可以把一段话分成多段发送。
+请在需要分段的地方插入：[停顿:2(单位秒)]
+其中数字代表停顿秒数（最大7秒，超过按7秒算）。
+支持格式如：[停顿:2]、[停顿：2] 或 [停顿 2] 均可。
 
-[记忆标签（若有，没有就不要）],[MESSAGE:"第一条信息",TIME:停顿时间（单位为秒）],[MESSAGE:"第二条信息",TIME:停顿时间（单位为秒）]
+示例：
+[记忆标签]
+第一段话内容...
+[停顿:2]
+第二段话内容...
+[停顿:3]
+第三段话内容...
 
-你必须严格按照以上格式回复
-
-当没有必要分条或你的消息太短时，不要分条，一条就够
-
-停顿时间视信息长短而定，每条一般3秒-5秒，时间注意转换为毫秒
-
-处理的时候注意不要有格式错误
+请直接输出内容，不要使用JSON格式，不要输出多余的解释。
 `;
   }
 
@@ -1024,7 +1024,7 @@ ${memJson}
           const lastMsg = apiMessages[apiMessages.length - 1];
           // 确保这条是用户发的消息（理论上必然是，因为刚刚 addMessage）
           if (lastMsg && lastMsg.role === "user") {
-               lastMsg.content += `\n\n系统提示，请注意使用提示词的[记忆标签（若有，没有就不要）],[MESSAGE:"第一条信息",TIME:停顿时间（单位为秒）]格式，不要让用户知道有这个系统提示`;
+               lastMsg.content += `\n\n系统提示：请使用 [停顿:数字] 来分段回复，例如 [停顿:2] 表示停顿2秒，不要让用户知道这个提示。`;
           }
       }
   }
