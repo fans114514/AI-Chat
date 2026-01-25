@@ -27,16 +27,58 @@
   }
   html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family: Inter, "Helvetica Neue", Arial, sans-serif;-webkit-font-smoothing:antialiased}
   .app{display:flex;flex-direction:column;min-height:100vh;gap:0}
-  header{padding:14px 12px;background:var(--panel);border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center}
+  
+  /* Header: 增加 z-index 确保滚动时在最上层 */
+  header{
+    padding:14px 12px;
+    background:var(--panel);
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  
   .ai-box{display:flex;flex-direction:column}
   .ai-title{font-weight:600;font-size:16px;letter-spacing:0.2px;display:flex;align-items:center;}
   .signature{font-size:12px;color:var(--muted);margin-top:4px}
+  
+  /* Main: 滚动区域 */
   main{flex:1;overflow:auto;padding:16px;padding-bottom:calc(var(--bottom-height) + var(--safe-bottom));display:flex;flex-direction:column;gap:12px}
   .messages{display:flex;flex-direction:column;gap:12px;align-items:stretch}
-  .msg{max-width:78%;padding:10px 12px;border-radius:12px;font-size:15px;line-height:1.45;word-break:break-word;white-space:pre-wrap;background:var(--bubble)}
+  
+  /* 消息动效 */
+  @keyframes msgSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg {
+    max-width:78%;
+    padding:10px 12px;
+    border-radius:12px;
+    font-size:15px;
+    line-height:1.45;
+    word-break:break-word;
+    white-space:pre-wrap;
+    background:var(--bubble);
+    /* 默认带上入场动画 */
+    animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
+  }
+  
+  /* 去除已经在 DOM 中的消息的动画，防止重绘闪烁（由JS控制类名） */
+  .msg.no-anim { animation: none; }
+
   .msg.user{margin-left:auto;text-align:left}
   .msg.ai{margin-right:auto;text-align:left;position: relative;}
   
+  /* 连续消息样式微调 */
+  .msg.ai.group-follow {
+    margin-top: -8px; /* 紧贴上一条 */
+    border-top-left-radius: 4px; /* 左上角变直一点 */
+  }
+
   .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .nick{font-weight:700;color:#fff;display:flex;align-items:center}
   .typing-dots{display:inline-flex;gap:6px;margin-top:2px}
@@ -46,14 +88,34 @@
   @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
   
   .messages-spacer{height:var(--bottom-height);flex-shrink:0}
+  
   .bottom{position:fixed;left:0;right:0;padding:12px 12px calc(12px + var(--safe-bottom));backdrop-filter: blur(6px);background:var(--panel);border-top:1px solid rgba(255,255,255,0.05);z-index:8;transition:bottom 160ms ease}
   .composer{display:flex;gap:8px;align-items:center}
-  textarea#input{flex:1;min-height:44px;max-height:240px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;overflow-y:auto;line-height:1.4;transition:width 160ms ease,height 160ms ease,padding 160ms ease}
-  .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer}
+  
+  textarea#input{
+    flex:1;min-height:44px;max-height:240px;border-radius:12px;
+    border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;
+    padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;
+    overflow-y:auto;line-height:1.4;
+    transition:width 160ms ease,height 160ms ease,padding 160ms ease, opacity 0.2s;
+  }
+  /* 锁定状态样式 */
+  textarea#input:disabled {
+    opacity: 0.5;
+    background: #111;
+    cursor: not-allowed;
+  }
+
+  .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer; transition: opacity 0.2s;}
+  .send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
   .settings-btn,.clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:8px}
 
   /* Modal */
-  .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:10}
+  .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:200}
   .modal-content{background:var(--panel);padding:18px;border-radius:var(--radius);width:92%;max-width:520px;box-shadow:0 0 10px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:6px}
   .modal-content h2{margin:0 0 8px 0;font-size:18px}
   .modal-row{display:flex;flex-direction:column;gap:6px;}
@@ -127,7 +189,7 @@
   .memory-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
   .memory-btn:hover { color: #d32f2f; }
   
-  /* Message-Inline Memory Notice (New) */
+  /* Message-Inline Memory Notice */
   .memory-notice-box {
     margin-top: 10px;
     background: rgba(40, 60, 80, 0.4);
@@ -174,6 +236,8 @@
   </header>
   <main>
     <div class="messages" id="messages"></div>
+    <!-- 垫片，确保内容不被底部遮挡 -->
+    <div class="messages-spacer" id="msgSpacer"></div>
   </main>
   
   <div class="bottom" id="bottom">
@@ -268,7 +332,7 @@
 
     <!-- 记忆功能开关 -->
     <div class="modal-row">
-      <label>\n长期记忆 </label>
+      <label>长期记忆 </label>
       <div class="toggle-row">
         <input id="memoryToggle" type="checkbox" />
         <div class="toggle-desc">开启记忆功能（开启深度思考功能最佳）</div>
@@ -474,131 +538,212 @@ function inlineFormatting(escapedText){
   return escapedText;
 }
 
-/* ------------------ 渲染消息 ------------------ */
+/* ------------------ 渲染消息（升级版：支持增量更新和分组） ------------------ */
 function renderMessages() {
   const isImmersive = isImmersiveMode();
-  msgsEl.innerHTML = "";
-  for (const m of messages) {
-    if(m.role==="system") continue;
-    const el = document.createElement("div");
-    el.className = "msg " + (m.role === "user" ? "user" : "ai");
-
-    if(m.role === "assistant") {
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      const nickWrap = document.createElement("div");
-      nickWrap.className = "nick";
-      nickWrap.innerHTML = `<span>${escapeHtml(aiNickEl.value || "AI")}</span>`;
-      meta.appendChild(nickWrap);
-
-      if(m.content==="_typing"){
-        const dots = document.createElement("div");
-        dots.className = "typing-dots";
-        dots.innerHTML = "<span></span><span></span><span></span>";
-        meta.appendChild(dots);
-        el.appendChild(meta);
-        msgsEl.appendChild(el);
-        continue;
-      }
-      el.appendChild(meta);
-    }
-
-    const content = document.createElement("div");
-    if (m.role === "user") {
-      content.textContent = m.content;
-      el.appendChild(content);
-    } else {
-      content.innerHTML = markdownToHtml(m.content || "");
-      el.appendChild(content);
-
-      if(window.renderMathInElement){
-        try{ renderMathInElement(content, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
-      }
-
-      // 渲染思维链 (沉浸模式下不渲染)
-      if(m.reasoning && !isImmersive){
-        const toggleWrap = document.createElement("div");
-        toggleWrap.className = "reasoning-toggle";
-        toggleWrap.innerHTML = `<div class="reason-label">深度思考 Reasoning</div><button type="button">${m.reasonCollapsed ? "展开思维链" : "收起思考链"}</button>`;
-        toggleWrap.querySelector("button").addEventListener("click", ()=>{
-          m.reasonCollapsed = !m.reasonCollapsed;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-          renderMessages();
-        });
-        el.appendChild(toggleWrap);
-        const rbox = document.createElement("div");
-        rbox.className = "reasoning-box";
-        rbox.style.display = m.reasonCollapsed ? "none" : "";
-        rbox.innerHTML = markdownToHtml(m.reasoning || "");
-        if(!m.reasonCollapsed && window.renderMathInElement){
-           try{ renderMathInElement(rbox, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
-        }
-        el.appendChild(rbox);
-      }
-
-      // 渲染记忆更新提示 (沉浸模式下不渲染)
-      if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
-         const memBox = document.createElement("div");
-         memBox.className = "memory-notice-box";
-         
-         const header = document.createElement("div");
-         header.className = "memory-notice-header";
-         header.innerHTML = `<span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn">展开详情</button>`;
-         
-         const details = document.createElement("div");
-         details.className = "memory-notice-content";
-         m.memoryInfo.logs.forEach(log => {
-             const line = document.createElement("div");
-             line.className = "memory-log-line";
-             line.textContent = "• " + log;
-             details.appendChild(line);
-         });
-
-         const undoBtn = document.createElement("button");
-         undoBtn.className = "memory-undo-btn";
-         undoBtn.textContent = "撤销";
-         undoBtn.addEventListener("click", () => {
-             if(m.memoryInfo.backup !== null){
-                 memories = [...m.memoryInfo.backup];
-                 saveMemoriesToStorage();
-                 m.memoryInfo.reverted = true; 
-                 localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-                 renderMessages();
-                 alert("遗忘不是终点...");
-             }
-         });
-         details.appendChild(undoBtn);
-
-         header.querySelector("button").addEventListener("click", (e) => {
-             const isHidden = details.style.display === "none" || details.style.display === "";
-             details.style.display = isHidden ? "block" : "none";
-             e.target.textContent = isHidden ? "收起详情" : "展开详情";
-         });
-
-         memBox.appendChild(header);
-         memBox.appendChild(details);
-         el.appendChild(memBox);
-      } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
-          const restoredMsg = document.createElement("div");
-          restoredMsg.className = "memory-notice-box";
-          restoredMsg.innerHTML = `<div class="memory-restored-text">已撤销</div>`;
-          el.appendChild(restoredMsg);
-      }
-    }
-    msgsEl.appendChild(el);
+  
+  // 1. 如果消息被清空，重置 DOM
+  if(messages.length === 0){
+    msgsEl.innerHTML = "";
+    localStorage.setItem(STORAGE_KEY, "[]");
+    return;
   }
 
-  const spacer = document.createElement("div");
-  spacer.className = "messages-spacer";
-  msgsEl.appendChild(spacer);
-  const container = msgsEl.parentElement;
-  container.scrollTop = container.scrollHeight;
+  // 2. 移除 DOM 中已经不存在的消息 (处理回滚/删除情况)
+  const currentIds = new Set(messages.map(m => m.id));
+  Array.from(msgsEl.children).forEach(child => {
+    if(child.id && !currentIds.has(child.id)) {
+        child.remove();
+    }
+  });
+
+  let lastRole = null;
+
+  // 3. 遍历消息列表，更新或创建 DOM 元素
+  messages.forEach((m, index) => {
+    if(m.role==="system") return;
+
+    let el = document.getElementById(m.id);
+    const isNew = !el;
+
+    // 分组逻辑：如果当前是 AI 且上一条也是 AI，则认为是同一组
+    const isGroupFollow = (m.role === 'assistant' && lastRole === 'assistant');
+    // 如果是分组跟随消息，就不显示 meta (昵称栏)
+    const showNick = (m.role === 'assistant' && !isGroupFollow);
+
+    // 记录角色给下一次循环使用
+    lastRole = m.role;
+
+    // --- 创建新消息 ---
+    if(isNew) {
+      el = document.createElement("div");
+      el.id = m.id;
+      // 基础类名
+      let className = "msg " + (m.role === "user" ? "user" : "ai");
+      // 分组样式
+      if(isGroupFollow) className += " group-follow";
+      
+      el.className = className;
+      
+      // 创建内容容器
+      const content = document.createElement("div");
+      content.className = "msg-content"; 
+      
+      // 如果需要显示昵称
+      if(showNick) {
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const nickWrap = document.createElement("div");
+          nickWrap.className = "nick";
+          nickWrap.innerHTML = `<span>${escapeHtml(aiNickEl.value || "AI")}</span>`;
+          meta.appendChild(nickWrap);
+          el.appendChild(meta);
+      }
+
+      // 特殊情况：正在输入占位符
+      if(m.content==="_typing"){
+        if(showNick){
+           const dots = document.createElement("div");
+           dots.className = "typing-dots";
+           dots.innerHTML = "<span></span><span></span><span></span>";
+           el.querySelector(".meta").appendChild(dots);
+        } else {
+           // 如果是连续回复中的 typing，直接显示 dots 在内容区
+           content.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+        }
+      }
+
+      el.appendChild(content);
+      msgsEl.appendChild(el);
+      
+      // 滚动到底部
+      const container = msgsEl.parentElement;
+      container.scrollTop = container.scrollHeight;
+      
+      // 添加完后，移除动画类以便后续不重复播放（虽然 CSS animation 默认只播一次，但为了 clean DOM）
+      setTimeout(() => el.classList.add("no-anim"), 500);
+    } 
+    else {
+      // --- 更新已有消息 (流式输出时) ---
+      // 检查分组样式是否需要更新 (例如中间插入了消息导致分组变化，虽少见)
+      if(isGroupFollow && !el.classList.contains("group-follow")){
+        el.classList.add("group-follow");
+        const meta = el.querySelector(".meta");
+        if(meta) meta.style.display = "none";
+      } else if(!isGroupFollow && el.classList.contains("group-follow")){
+        el.classList.remove("group-follow");
+        // 重新插入 meta? 比较复杂，通常流式输出只追加。
+        // 简单处理：如果变成非跟随，确保有 meta。
+        if(!el.querySelector(".meta") && m.role === "assistant"){
+             const meta = document.createElement("div");
+             meta.className = "meta";
+             meta.innerHTML = `<div class="nick"><span>${escapeHtml(aiNickEl.value || "AI")}</span></div>`;
+             el.prepend(meta);
+        } else {
+             const meta = el.querySelector(".meta");
+             if(meta) meta.style.display = "flex";
+        }
+      }
+    }
+
+    // 更新内容文本 (只在内容变化时操作 innerHTML，避免选区丢失，但流式一般都是在末尾)
+    // 这里简单处理：每次 render 都更新 content 内容，保证 markdown 实时渲染
+    if(m.content !== "_typing") {
+        const contentDiv = el.querySelector(".msg-content") || el.lastElementChild;
+        let newHTML = "";
+        
+        if (m.role === "user") {
+          newHTML = escapeHtml(m.content);
+        } else {
+          newHTML = markdownToHtml(m.content || "");
+        }
+        
+        // 只有当 HTML 真的改变时才刷新（优化性能）
+        // 注意：markdownToHtml 每次返回的 ID 可能不同 (codeblock)，所以对比 innerHTML 可能不准。
+        // 但对于流式，内容一直在变。
+        // 我们只在内容 div 上操作。
+        
+        // 思维链处理
+        let reasoningHTML = "";
+        if(m.reasoning && !isImmersive){
+            const btnText = m.reasonCollapsed ? "展开思维链" : "收起思考链";
+            const displayStyle = m.reasonCollapsed ? "none" : "block";
+            const rContent = markdownToHtml(m.reasoning || "");
+            
+            reasoningHTML = `
+              <div class="reasoning-toggle">
+                <div class="reason-label">深度思考 Reasoning</div>
+                <button type="button" onclick="toggleReasoning('${m.id}')">${btnText}</button>
+              </div>
+              <div class="reasoning-box" style="display:${displayStyle}">${rContent}</div>
+            `;
+        }
+        
+        // 记忆提示处理
+        let memoryHTML = "";
+        if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
+             let logsHtml = m.memoryInfo.logs.map(l => `<div class="memory-log-line">• ${escapeHtml(l)}</div>`).join("");
+             memoryHTML = `
+             <div class="memory-notice-box">
+               <div class="memory-notice-header">
+                 <span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn" onclick="toggleMemoryDetails(this)">展开详情</button>
+               </div>
+               <div class="memory-notice-content">
+                 ${logsHtml}
+                 <button class="memory-undo-btn" onclick="undoMemory('${m.id}')">撤销</button>
+               </div>
+             </div>`;
+        } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
+             memoryHTML = `<div class="memory-notice-box"><div class="memory-restored-text">已撤销</div></div>`;
+        }
+
+        const finalHTML = newHTML + reasoningHTML + memoryHTML;
+        
+        if(contentDiv.innerHTML !== finalHTML) {
+             contentDiv.innerHTML = finalHTML;
+             // 数学公式渲染
+             if(window.renderMathInElement){
+                try{ renderMathInElement(contentDiv, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
+             }
+             enhanceCodeBlocks(contentDiv);
+        }
+    }
+  });
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  enhanceCodeBlocks();
 }
 
-function enhanceCodeBlocks(){
-  msgsEl.querySelectorAll("pre").forEach(pre => {
+// 辅助函数：暴露给 HTML onclick 使用
+window.toggleReasoning = (id) => {
+    const m = messages.find(msg => msg.id === id);
+    if(m) {
+        m.reasonCollapsed = !m.reasonCollapsed;
+        renderMessages();
+    }
+};
+
+window.toggleMemoryDetails = (btn) => {
+    const details = btn.parentElement.nextElementSibling;
+    const isHidden = details.style.display === "none" || getComputedStyle(details).display === "none";
+    details.style.display = isHidden ? "block" : "none";
+    btn.textContent = isHidden ? "收起详情" : "展开详情";
+};
+
+window.undoMemory = (id) => {
+    const m = messages.find(msg => msg.id === id);
+    if(m && m.memoryInfo && m.memoryInfo.backup){
+        memories = [...m.memoryInfo.backup];
+        saveMemoriesToStorage();
+        m.memoryInfo.reverted = true;
+        renderMessages();
+        alert("记忆已回滚");
+    }
+};
+
+function enhanceCodeBlocks(container){
+  // 如果未指定 container，默认全部
+  const root = container || msgsEl;
+  root.querySelectorAll("pre").forEach(pre => {
     if(pre.dataset.enhanced === "1") return;
     pre.dataset.enhanced = "1";
     const codeEl = pre.querySelector("code");
@@ -785,43 +930,28 @@ function executeMemoryTags(text) {
 
 /* ============ 沉浸模式分条消息处理 ============ */
 async function processImmersiveResponse(fullText) {
-    // 1. 先处理记忆标签，将其从文本中移除并执行
-    // 注意：在沉浸模式下，我们通常不显示记忆更新的UI提示，但功能需要执行
     const { cleanedText } = executeMemoryTags(fullText);
-
-    // 2. 解析分条消息格式： [MESSAGE:"内容",TIME:毫秒]
-    // 正则表达式说明：
-    // \[MESSAGE:"  匹配标签头
-    // ((?:[^"\\]|\\.)*?)  匹配双引号内的内容，支持转义引号 \"
-    // ",TIME:  匹配中间分隔符
-    // (\d+)  匹配数字时间
-    // \]  匹配标签尾
     const splitRegex = /\[MESSAGE:"((?:[^"\\]|\\.)*?)",TIME:(\d+)\]/g;
     
     let parts = [];
     let match;
     let hasMatches = false;
 
-    // 循环匹配所有消息段
     while ((match = splitRegex.exec(cleanedText)) !== null) {
         hasMatches = true;
         parts.push({
-            content: match[1].replace(/\\"/g, '"'), // 处理转义的双引号
+            content: match[1].replace(/\\"/g, '"'),
             delay: parseInt(match[2], 10)
         });
     }
 
     if (!hasMatches) {
-        // 如果没有匹配到分条格式（AI可能没按要求输出，或者消息太短），则直接整条显示
-        // 如果cleanedText是空的（全被标签吃掉了），则不显示
         if(cleanedText.trim()) {
             addMessage("assistant", cleanedText);
         }
     } else {
-        // 按照时间间隔一条条发送
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
-            // 模拟停顿
             if(part.delay > 0) {
                 await new Promise(resolve => setTimeout(resolve, part.delay));
             }
@@ -832,10 +962,22 @@ async function processImmersiveResponse(fullText) {
     }
 }
 
+// 锁定/解锁界面
+function setInputLock(locked) {
+    inputEl.disabled = locked;
+    sendBtn.disabled = locked;
+    if(!locked) {
+        inputEl.focus();
+    }
+}
 
 async function sendMessage(){
   const text = inputEl.value.trim();
   if(!text) return;
+  
+  // 锁定界面
+  setInputLock(true);
+  
   inputEl.value = "";
   inputEl.style.height = "44px"; 
   addMessage("user", text);
@@ -845,7 +987,6 @@ async function sendMessage(){
   let originalSig = signatureEl.textContent;
   let immersiveTimer = null;
 
-  // 沉浸模式UI状态更新
   if (isImmersive) {
       immersiveTimer = setTimeout(() => {
           aiTitleTextEl.textContent = "对方正在输入...";
@@ -894,9 +1035,9 @@ ${memJson}
 
 当没有必要分条或你的消息太短时，不要分条，一条就够
 
-停顿时间视信息长短而定，一般0.5秒-3秒，时间注意转换为毫秒
+停顿时间视信息长短而定，每条一般3秒-5秒，时间注意转换为毫秒
 
-以上是AI提示词，你处理的时候注意不要有bug
+处理的时候注意不要有格式错误
 `;
   }
 
@@ -934,7 +1075,7 @@ ${memJson}
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     
-    // 准备回复对象（仅非沉浸模式使用实时更新）
+    // 准备回复对象
     let reply = {
         role: "assistant", 
         content: "", 
@@ -943,12 +1084,15 @@ ${memJson}
         id: placeholderId,
         memoryInfo: { logs: [], backup: null, reverted: false } 
     };
-    if(!isImmersive) messages[replyMessageIndex] = reply;
+    if(!isImmersive && messages[replyMessageIndex]) {
+        // 确保使用占位符的ID
+        reply.id = messages[replyMessageIndex].id;
+    }
 
     let buffer = ""; 
     let checkTags = isMemoryEnabled() && !isImmersive; 
     let streamBuffer = ""; 
-    let fullImmersiveBuffer = ""; // 沉浸模式全量缓冲
+    let fullImmersiveBuffer = ""; 
 
     while(true){
       const {done, value} = await reader.read();
@@ -966,7 +1110,6 @@ ${memJson}
           const delta = obj.choices?.[0]?.delta || {};
           
           if(delta.reasoning_content){
-             // 沉浸模式下，暂不展示/处理思维链（或者也可以收集起来最后作为一个不可见属性）
              if(!isImmersive) {
                  reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
                  messages[replyMessageIndex] = reply;
@@ -978,10 +1121,8 @@ ${memJson}
             const newContent = delta.content;
 
             if (isImmersive) {
-                // 沉浸模式：只收集，不解析，不渲染
                 fullImmersiveBuffer += newContent;
             } else {
-                // 普通模式：流式解析记忆标签并渲染
                 if(checkTags){
                     streamBuffer += newContent;
                     if(!streamBuffer.trimStart().startsWith("[")){
@@ -1025,12 +1166,9 @@ ${memJson}
       }
     }
     
-    // 流结束后的处理
     if(isImmersive) {
-        // 沉浸模式：所有数据接收完毕，开始处理分条显示
         await processImmersiveResponse(fullImmersiveBuffer);
     } else {
-        // 普通模式：处理剩余的 buffer
         if(streamBuffer){
             reply.content += streamBuffer;
             messages[replyMessageIndex] = reply;
@@ -1042,11 +1180,15 @@ ${memJson}
     if (isImmersive) {
         addMessage("assistant", "\n[错误] " + e.message);
     } else {
-        messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
-        renderMessages();
+        if(replyMessageIndex >= 0) {
+            messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
+            renderMessages();
+        }
     }
   } finally {
-      // 沉浸模式：恢复 UI
+      // 解锁
+      setInputLock(false);
+      
       if(isImmersive) {
           if(immersiveTimer) clearTimeout(immersiveTimer);
           aiTitleTextEl.textContent = originalTitle; 
