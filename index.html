@@ -79,10 +79,6 @@
     border-top-left-radius: 4px; /* 左上角变直一点 */
   }
 
-  /* 【修复】气泡内容首尾元素去除margin，解决上下空白过大问题 */
-  .msg-content > *:first-child { margin-top: 0 !important; }
-  .msg-content > *:last-child { margin-bottom: 0 !important; }
-
   .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .nick{font-weight:700;color:#fff;display:flex;align-items:center}
   .typing-dots{display:inline-flex;gap:6px;margin-top:2px}
@@ -169,43 +165,22 @@
 
   @media (max-height:600px){ .modal-content{max-height:80vh;overflow:auto} }
 
-  /* Reasoning (已修复空白问题) */
+  /* Reasoning */
   .reasoning-box {
-    /* 调整 margin 和 padding 更加紧凑 */
-    margin-top: 0; 
-    margin-bottom: 10px; /* 增加底部间距，与正文区分 */
-    background: rgba(255,255,255,0.02); 
-    border: 1px solid rgba(255,255,255,0.03);
-    padding: 8px 12px; /* 减小内边距 */
-    border-radius: 10px; 
-    color: var(--muted); 
-    font-size: 13px; 
-    line-height: 1.45;
-    white-space: normal; 
+    margin-top:8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03);
+    padding:10px; border-radius:10px; color:var(--muted); font-size:13px; line-height:1.45;
   }
-  /* 【新增修复】强制去除深度思考内容首尾元素的margin，解决上下空白过大问题 */
-  .reasoning-box > *:first-child { margin-top: 0 !important; }
-  .reasoning-box > *:last-child { margin-bottom: 0 !important; }
-
   .reasoning-toggle { 
     display:flex; 
     justify-content:space-between; 
     align-items:center; 
     gap:8px; 
-    margin-top: 2px; /* 减小顶部留白 */
-    margin-bottom: 6px; /* 标题与内容框的间距 */
+    margin-top:8px; 
+    /* 【修复】防止被父级pre-wrap影响导致布局错乱 */
+    white-space: normal; 
   }
-  .reasoning-toggle button { 
-    background: transparent; 
-    color: var(--muted); 
-    border: 1px solid rgba(255,255,255,0.04); 
-    padding: 4px 8px; /* 稍微减小按钮内边距 */
-    border-radius: 8px; 
-    cursor: pointer; 
-    font-size: 12px; 
-  }
+  .reasoning-toggle button { background: transparent; color: var(--muted); border:1px solid rgba(255,255,255,0.04); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; }
   .reason-label { font-size:12px;color:var(--muted); }
-  
   textarea.collapsed { width: 160px; padding-top:8px; padding-bottom:8px; height:44px; }
   textarea.expanded { width: auto; flex:1; }
   @media (max-width:420px){ textarea.collapsed { width: 120px; } }
@@ -250,6 +225,9 @@
   }
   .memory-undo-btn:hover { background: rgba(255,255,255,0.2); }
   .memory-restored-text { color: var(--muted); font-style: italic; margin-top: 4px; }
+  
+  /* 确保 msg-content 内部布局整洁 */
+  .msg-content { display: flex; flex-direction: column; }
 
 </style>
 </head>
@@ -571,58 +549,42 @@ function inlineFormatting(escapedText){
   return escapedText;
 }
 
-/* ------------------ 渲染消息（升级版：支持增量更新和分组） ------------------ */
+/* ------------------ 渲染消息（修复版：去除缩进换行，修复布局问题） ------------------ */
 function renderMessages() {
   const isImmersive = isImmersiveMode();
   
-  // 1. 如果消息被清空，重置 DOM
   if(messages.length === 0){
     msgsEl.innerHTML = "";
     localStorage.setItem(STORAGE_KEY, "[]");
     return;
   }
 
-  // 2. 移除 DOM 中已经不存在的消息 (处理回滚/删除情况)
   const currentIds = new Set(messages.map(m => m.id));
   Array.from(msgsEl.children).forEach(child => {
-    if(child.id && !currentIds.has(child.id)) {
-        child.remove();
-    }
+    if(child.id && !currentIds.has(child.id)) child.remove();
   });
 
   let lastRole = null;
 
-  // 3. 遍历消息列表，更新或创建 DOM 元素
   messages.forEach((m, index) => {
     if(m.role==="system") return;
 
     let el = document.getElementById(m.id);
     const isNew = !el;
-
-    // 分组逻辑：如果当前是 AI 且上一条也是 AI，则认为是同一组
     const isGroupFollow = (m.role === 'assistant' && lastRole === 'assistant');
-    // 如果是分组跟随消息，就不显示 meta (昵称栏)
     const showNick = (m.role === 'assistant' && !isGroupFollow);
-
-    // 记录角色给下一次循环使用
     lastRole = m.role;
 
-    // --- 创建新消息 ---
     if(isNew) {
       el = document.createElement("div");
       el.id = m.id;
-      // 基础类名
       let className = "msg " + (m.role === "user" ? "user" : "ai");
-      // 分组样式
       if(isGroupFollow) className += " group-follow";
-      
       el.className = className;
       
-      // 创建内容容器
       const content = document.createElement("div");
       content.className = "msg-content"; 
       
-      // 如果需要显示昵称
       if(showNick) {
           const meta = document.createElement("div");
           meta.className = "meta";
@@ -633,7 +595,6 @@ function renderMessages() {
           el.appendChild(meta);
       }
 
-      // 特殊情况：正在输入占位符
       if(m.content==="_typing"){
         if(showNick){
            const dots = document.createElement("div");
@@ -641,7 +602,6 @@ function renderMessages() {
            dots.innerHTML = "<span></span><span></span><span></span>";
            el.querySelector(".meta").appendChild(dots);
         } else {
-           // 如果是连续回复中的 typing，直接显示 dots 在内容区
            content.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
         }
       }
@@ -649,24 +609,17 @@ function renderMessages() {
       el.appendChild(content);
       msgsEl.appendChild(el);
       
-      // 滚动到底部
       const container = msgsEl.parentElement;
       container.scrollTop = container.scrollHeight;
-      
-      // 添加完后，移除动画类以便后续不重复播放（虽然 CSS animation 默认只播一次，但为了 clean DOM）
       setTimeout(() => el.classList.add("no-anim"), 500);
     } 
     else {
-      // --- 更新已有消息 (流式输出时) ---
-      // 检查分组样式是否需要更新 (例如中间插入了消息导致分组变化，虽少见)
       if(isGroupFollow && !el.classList.contains("group-follow")){
         el.classList.add("group-follow");
         const meta = el.querySelector(".meta");
         if(meta) meta.style.display = "none";
       } else if(!isGroupFollow && el.classList.contains("group-follow")){
         el.classList.remove("group-follow");
-        // 重新插入 meta? 比较复杂，通常流式输出只追加。
-        // 简单处理：如果变成非跟随，确保有 meta。
         if(!el.querySelector(".meta") && m.role === "assistant"){
              const meta = document.createElement("div");
              meta.className = "meta";
@@ -679,57 +632,31 @@ function renderMessages() {
       }
     }
 
-    // 更新内容文本 (只在内容变化时操作 innerHTML，避免选区丢失，但流式一般都是在末尾)
-    // 这里简单处理：每次 render 都更新 content 内容，保证 markdown 实时渲染
     if(m.content !== "_typing") {
         const contentDiv = el.querySelector(".msg-content") || el.lastElementChild;
         let newHTML = "";
         
-        // 【修复】移除可能残留在 meta 或 content 中的 typing-dots
-        const dots = el.querySelectorAll(".typing-dots");
-        dots.forEach(d => d.remove());
-
         if (m.role === "user") {
           newHTML = escapeHtml(m.content);
         } else {
           newHTML = markdownToHtml(m.content || "");
         }
         
-        // 只有当 HTML 真的改变时才刷新（优化性能）
-        // 注意：markdownToHtml 每次返回的 ID 可能不同 (codeblock)，所以对比 innerHTML 可能不准。
-        // 但对于流式，内容一直在变。
-        // 我们只在内容 div 上操作。
-        
-        // 思维链处理
         let reasoningHTML = "";
         if(m.reasoning && !isImmersive){
             const btnText = m.reasonCollapsed ? "展开思维链" : "收起思考链";
             const displayStyle = m.reasonCollapsed ? "none" : "block";
             const rContent = markdownToHtml(m.reasoning || "");
             
-            reasoningHTML = `
-              <div class="reasoning-toggle">
-                <div class="reason-label">深度思考 Reasoning</div>
-                <button type="button" onclick="toggleReasoning('${m.id}')">${btnText}</button>
-              </div>
-              <div class="reasoning-box" style="display:${displayStyle}">${rContent}</div>
-            `;
+            // 【修复关键】：使用单行字符串拼接，避免缩进空格被 pre-wrap 渲染
+            reasoningHTML = `<div class="reasoning-toggle"><div class="reason-label">深度思考 Reasoning</div><button type="button" onclick="toggleReasoning('${m.id}')">${btnText}</button></div><div class="reasoning-box" style="display:${displayStyle}">${rContent}</div>`;
         }
         
-        // 记忆提示处理
         let memoryHTML = "";
         if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
              let logsHtml = m.memoryInfo.logs.map(l => `<div class="memory-log-line">• ${escapeHtml(l)}</div>`).join("");
-             memoryHTML = `
-             <div class="memory-notice-box">
-               <div class="memory-notice-header">
-                 <span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn" onclick="toggleMemoryDetails(this)">展开详情</button>
-               </div>
-               <div class="memory-notice-content">
-                 ${logsHtml}
-                 <button class="memory-undo-btn" onclick="undoMemory('${m.id}')">撤销</button>
-               </div>
-             </div>`;
+             // 【修复关键】：使用单行字符串拼接
+             memoryHTML = `<div class="memory-notice-box"><div class="memory-notice-header"><span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn" onclick="toggleMemoryDetails(this)">展开详情</button></div><div class="memory-notice-content">${logsHtml}<button class="memory-undo-btn" onclick="undoMemory('${m.id}')">撤销</button></div></div>`;
         } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
              memoryHTML = `<div class="memory-notice-box"><div class="memory-restored-text">已撤销</div></div>`;
         }
@@ -738,7 +665,6 @@ function renderMessages() {
         
         if(contentDiv.innerHTML !== finalHTML) {
              contentDiv.innerHTML = finalHTML;
-             // 数学公式渲染
              if(window.renderMathInElement){
                 try{ renderMathInElement(contentDiv, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
              }
@@ -989,8 +915,7 @@ async function processImmersiveResponse(fullText) {
     } else {
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
-            // 【修改】如果是第一条消息（i===0），忽略延迟立即回复；否则等待延迟
-            if(part.delay > 0 && i > 0) {
+            if(part.delay > 0) {
                 await new Promise(resolve => setTimeout(resolve, part.delay));
             }
             if(part.content.trim()) {
@@ -1053,12 +978,15 @@ ${memJson}
 ​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
 
 [UPDATE_MEMORY:"内容"]
-#该工具为增加记忆
+#该工具为增加记忆，禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎
 
 [SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
-#该工具为更改记忆
+#该工具为更改记忆，
 
 ##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
+
+可以记住：用户的信息，职业爱好等
+​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
 `;
   }
 
