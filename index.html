@@ -633,6 +633,10 @@ function renderMessages() {
     }
 
     if(m.content !== "_typing") {
+        // 【修复】清理 .meta 中的 typing-dots，防止加载动画残留
+        const metaDots = el.querySelector(".meta .typing-dots");
+        if(metaDots) metaDots.remove();
+
         const contentDiv = el.querySelector(".msg-content") || el.lastElementChild;
         let newHTML = "";
         
