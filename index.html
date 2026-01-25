@@ -783,6 +783,56 @@ function executeMemoryTags(text) {
   };
 }
 
+/* ============ 沉浸模式分条消息处理 ============ */
+async function processImmersiveResponse(fullText) {
+    // 1. 先处理记忆标签，将其从文本中移除并执行
+    // 注意：在沉浸模式下，我们通常不显示记忆更新的UI提示，但功能需要执行
+    const { cleanedText } = executeMemoryTags(fullText);
+
+    // 2. 解析分条消息格式： [MESSAGE:"内容",TIME:毫秒]
+    // 正则表达式说明：
+    // \[MESSAGE:"  匹配标签头
+    // ((?:[^"\\]|\\.)*?)  匹配双引号内的内容，支持转义引号 \"
+    // ",TIME:  匹配中间分隔符
+    // (\d+)  匹配数字时间
+    // \]  匹配标签尾
+    const splitRegex = /\[MESSAGE:"((?:[^"\\]|\\.)*?)",TIME:(\d+)\]/g;
+    
+    let parts = [];
+    let match;
+    let hasMatches = false;
+
+    // 循环匹配所有消息段
+    while ((match = splitRegex.exec(cleanedText)) !== null) {
+        hasMatches = true;
+        parts.push({
+            content: match[1].replace(/\\"/g, '"'), // 处理转义的双引号
+            delay: parseInt(match[2], 10)
+        });
+    }
+
+    if (!hasMatches) {
+        // 如果没有匹配到分条格式（AI可能没按要求输出，或者消息太短），则直接整条显示
+        // 如果cleanedText是空的（全被标签吃掉了），则不显示
+        if(cleanedText.trim()) {
+            addMessage("assistant", cleanedText);
+        }
+    } else {
+        // 按照时间间隔一条条发送
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            // 模拟停顿
+            if(part.delay > 0) {
+                await new Promise(resolve => setTimeout(resolve, part.delay));
+            }
+            if(part.content.trim()) {
+                addMessage("assistant", part.content);
+            }
+        }
+    }
+}
+
+
 async function sendMessage(){
   const text = inputEl.value.trim();
   if(!text) return;
@@ -790,12 +840,12 @@ async function sendMessage(){
   inputEl.style.height = "44px"; 
   addMessage("user", text);
 
-  // 沉浸模式下处理 UI 变化 (对方正在输入)
   const isImmersive = isImmersiveMode();
   let originalTitle = aiTitleTextEl.textContent;
   let originalSig = signatureEl.textContent;
   let immersiveTimer = null;
 
+  // 沉浸模式UI状态更新
   if (isImmersive) {
       immersiveTimer = setTimeout(() => {
           aiTitleTextEl.textContent = "对方正在输入...";
@@ -833,17 +883,40 @@ ${memJson}
 `;
   }
 
+  // 沉浸模式：注入分条回复指令
+  if (isImmersive) {
+      sysPrompt += `
+当你回复信息时，请将你输出的信息合理，自然的分割成多条，并且加入合适的停顿时间（单位为毫秒），格式：
+
+[记忆标签（若有，没有就不要）],[MESSAGE:"第一条信息",TIME:停顿时间（单位为秒）],[MESSAGE:"第二条信息",TIME:停顿时间（单位为秒）]
+
+你必须严格按照以上格式回复
+
+当没有必要分条或你的消息太短时，不要分条，一条就够
+
+停顿时间视信息长短而定，一般0.5秒-3秒，时间注意转换为毫秒
+
+以上是AI提示词，你处理的时候注意不要有bug
+`;
+  }
+
   const apiMessages = [{role:"system", content: sysPrompt}];
   for(const m of messages){
     if(m.role==="assistant" && m.content==="_typing") continue;
     if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
   }
 
-  const placeholderId = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+  // 非沉浸模式下：添加占位符消息
+  let placeholderId = null;
+  let replyMessageIndex = -1;
   const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
-  addMessage("assistant","_typing",{id:placeholderId, reasoning: null, reasonCollapsed: placeholderReasonCollapsed});
-  let replyMessageIndex = messages.findIndex(mm => mm.id === placeholderId);
-  if(replyMessageIndex === -1) replyMessageIndex = messages.length - 1;
+
+  if (!isImmersive) {
+      placeholderId = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+      addMessage("assistant","_typing",{id:placeholderId, reasoning: null, reasonCollapsed: placeholderReasonCollapsed});
+      replyMessageIndex = messages.findIndex(mm => mm.id === placeholderId);
+      if(replyMessageIndex === -1) replyMessageIndex = messages.length - 1;
+  }
 
   try {
     const apiKey = getApiKey();
@@ -861,6 +934,7 @@ ${memJson}
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     
+    // 准备回复对象（仅非沉浸模式使用实时更新）
     let reply = {
         role: "assistant", 
         content: "", 
@@ -869,11 +943,12 @@ ${memJson}
         id: placeholderId,
         memoryInfo: { logs: [], backup: null, reverted: false } 
     };
-    messages[replyMessageIndex] = reply;
+    if(!isImmersive) messages[replyMessageIndex] = reply;
 
     let buffer = ""; 
-    let checkTags = isMemoryEnabled(); 
+    let checkTags = isMemoryEnabled() && !isImmersive; 
     let streamBuffer = ""; 
+    let fullImmersiveBuffer = ""; // 沉浸模式全量缓冲
 
     while(true){
       const {done, value} = await reader.read();
@@ -891,72 +966,92 @@ ${memJson}
           const delta = obj.choices?.[0]?.delta || {};
           
           if(delta.reasoning_content){
-            reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
-            messages[replyMessageIndex] = reply;
-            renderMessages();
+             // 沉浸模式下，暂不展示/处理思维链（或者也可以收集起来最后作为一个不可见属性）
+             if(!isImmersive) {
+                 reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
+                 messages[replyMessageIndex] = reply;
+                 renderMessages();
+             }
           }
 
           if(delta.content){
             const newContent = delta.content;
 
-            if(checkTags){
-                streamBuffer += newContent;
-                if(!streamBuffer.trimStart().startsWith("[")){
-                    reply.content += streamBuffer;
-                    streamBuffer = "";
-                    checkTags = false; 
-                } else {
-                    while(true) {
-                        const startIndex = streamBuffer.indexOf("[");
-                        const endIndex = streamBuffer.indexOf("]");
-                        
-                        if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
-                            const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
-                            const result = executeMemoryTags(tagStr);
-                            
-                            if(result.hasUpdate){
-                                if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
-                                reply.memoryInfo.logs.push(...result.logs);
-                            } else {
-                                reply.content += tagStr; 
-                            }
-                            streamBuffer = streamBuffer.substring(endIndex + 1);
-                        } else {
-                            break;
-                        }
-                    }
-                    if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
+            if (isImmersive) {
+                // 沉浸模式：只收集，不解析，不渲染
+                fullImmersiveBuffer += newContent;
+            } else {
+                // 普通模式：流式解析记忆标签并渲染
+                if(checkTags){
+                    streamBuffer += newContent;
+                    if(!streamBuffer.trimStart().startsWith("[")){
                         reply.content += streamBuffer;
                         streamBuffer = "";
-                        checkTags = false;
+                        checkTags = false; 
+                    } else {
+                        while(true) {
+                            const startIndex = streamBuffer.indexOf("[");
+                            const endIndex = streamBuffer.indexOf("]");
+                            
+                            if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
+                                const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
+                                const result = executeMemoryTags(tagStr);
+                                
+                                if(result.hasUpdate){
+                                    if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
+                                    reply.memoryInfo.logs.push(...result.logs);
+                                } else {
+                                    reply.content += tagStr; 
+                                }
+                                streamBuffer = streamBuffer.substring(endIndex + 1);
+                            } else {
+                                break;
+                            }
+                        }
+                        if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
+                            reply.content += streamBuffer;
+                            streamBuffer = "";
+                            checkTags = false;
+                        }
                     }
+                } else {
+                    reply.content += newContent;
                 }
-            } else {
-                reply.content += newContent;
+                messages[replyMessageIndex] = reply;
+                renderMessages();
             }
-            messages[replyMessageIndex] = reply;
-            renderMessages();
           }
         }catch(e){}
       }
     }
     
-    if(streamBuffer){
-        reply.content += streamBuffer;
-        messages[replyMessageIndex] = reply;
-        renderMessages();
+    // 流结束后的处理
+    if(isImmersive) {
+        // 沉浸模式：所有数据接收完毕，开始处理分条显示
+        await processImmersiveResponse(fullImmersiveBuffer);
+    } else {
+        // 普通模式：处理剩余的 buffer
+        if(streamBuffer){
+            reply.content += streamBuffer;
+            messages[replyMessageIndex] = reply;
+            renderMessages();
+        }
     }
     
   }catch(e){
-    messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
-    renderMessages();
+    if (isImmersive) {
+        addMessage("assistant", "\n[错误] " + e.message);
+    } else {
+        messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
+        renderMessages();
+    }
   } finally {
       // 沉浸模式：恢复 UI
       if(isImmersive) {
           if(immersiveTimer) clearTimeout(immersiveTimer);
-          aiTitleTextEl.textContent = originalTitle; // 恢复之前的标题(昵称)
+          aiTitleTextEl.textContent = originalTitle; 
           signatureEl.textContent = originalSig;
-          signatureEl.style.display = ""; // 恢复显示
+          signatureEl.style.display = ""; 
       }
   }
 }
