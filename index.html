@@ -851,10 +851,21 @@ manualMemoryInput.addEventListener("keydown", (e) => {
   }
 });
 
-/* ============ 记忆解析器 ============ */
+/* ============ 记忆解析器（改进版）=========== */
 function executeMemoryTags(text) {
-  const updateRegex = /\[UPDATE_MEMORY:"(.*?)"\]/g;
-  const setDateRegex = /\[SETDATE_MEMORY:"(.*?)",\s*number:"(\d+)"\]/g;
+  // 支持的引号集合：英文双引号 "，中文引号 “ ”，以及单引号 ‘ ’（如果未来需要）
+  const QUOTE = `['"“”‘’]`;
+
+  const updateRegex = new RegExp(
+    `\\[UPDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\]`,
+    'g'
+  );
+
+  // 优化一：修改正则，兼容 AI 不带引号的数字输出
+  const setDateRegex = new RegExp(
+    `\\[SETDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\s*[,\\uff0c]\\s*number\\s*:\\s*(?:${QUOTE})?(\\d+)(?:${QUOTE})?\\]`,
+    'g'
+  );
   
   let newText = text;
   let logs = [];
@@ -863,15 +874,18 @@ function executeMemoryTags(text) {
   const backup = [...memories];
 
   let match;
+  // 处理 UPDATE_MEMORY
   while ((match = updateRegex.exec(text)) !== null) {
-      const content = match[1];
+      const content = match[2];
       memories.push(content);
       logs.push(`新增: ${content}`);
       hasUpdate = true;
   }
+
+  // 处理 SETDATE_MEMORY
   while ((match = setDateRegex.exec(text)) !== null) {
-      const content = match[1];
-      const num = parseInt(match[2]);
+      const content = match[2];
+      const num = parseInt(match[3], 10);
       if (!isNaN(num) && num > 0 && num <= memories.length) {
           const old = memories[num - 1];
           memories[num - 1] = content;
@@ -880,6 +894,7 @@ function executeMemoryTags(text) {
       }
   }
   
+  // 清除标签（把所有匹配到的标签从文本中移除）
   newText = newText.replace(updateRegex, "");
   newText = newText.replace(setDateRegex, "");
   
@@ -899,9 +914,9 @@ function executeMemoryTags(text) {
 async function processImmersiveResponse(fullText) {
     const { cleanedText } = executeMemoryTags(fullText);
     
-    // 匹配 [停顿:x(单位秒)] 格式，宽容匹配冒号、空格，数字
+    // 优化三：修改分隔正则，使其匹配更宽容（兼容中英方括号，更多空格可能性）
     // 捕获组1是数字。Split 会保留捕获组。
-    const splitRegex = /\[\s*停顿[:：\s]*(\d+)[^\]]*\]/gi;
+    const splitRegex = /[\[【]\s*停顿[:：\s]*(\d+)[^\]】]*[\]】]/gi;
     
     const segments = cleanedText.split(splitRegex);
     // 数组结构会是：[Text, DelayStr, Text, DelayStr, Text...]
@@ -961,18 +976,21 @@ async function sendMessage(){
   let sysPrompt = `现在是 ${getBeijingTime()}（北京时间二十四小时制），用户提示：${userPromptEl.value||""}`;
   
   if(isMemoryEnabled()){
-     const memJson = JSON.stringify(memories);
+     // 优化二：带序号的列表排版格式，替代原本的 JSON
+     let memText = "暂无记忆";
+     if (memories && memories.length > 0) {
+         memText = memories.map((mem, index) => `${index + 1}. ${mem}`).join("\n");
+     }
+     
      sysPrompt += `
 \n你拥有长期记忆功能。
 当前记忆库：
 <memory>
-${memJson}
+${memText}
 </memory>
 
 行为准则：
-​记忆库中包含了用户的姓名、偏好、过去提到的重要事件等。
-​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性。
-​在对话中要自然地流露出你记得这些信息。
+​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性，不要突兀提出记忆，不合适时禁止使用
 
 你拥有添加记忆的能力：
 ​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
@@ -981,11 +999,11 @@ ${memJson}
 #该工具为增加记忆，禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎
 
 [SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
-#该工具为更改记忆，
+#该工具为更改记忆
 
 ##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
 
-可以从平常和用户的聊天中提取有用信息记忆
+可以从平常和用户的聊天中提取有用长期信息记忆
 
 ​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
 `;
@@ -996,24 +1014,21 @@ ${memJson}
       sysPrompt += `
 当你回复信息时，你可以把一段话分成多段发送。
 请在需要分段的地方插入：[停顿:2(单位秒)]
-其中数字代表停顿秒数（最大7秒，超过按7秒算）。
-支持格式；[停顿:2]
+最大时间7秒
+格式：
+[停顿:2]
 
 示例：
 [记忆标签]
 第一段话内容...
 [停顿:2]
 第二段话内容...
-[停顿:3]
-第三段话内容...
 
-请直接输出内容，不要使用JSON格式，不要输出多余的解释。
+请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间
 
-当你回复信息时，请将你输出的信息合理，自然的分割成多条，并且加入合适的停顿时间（单位为秒）
+当没有必要分条或你的消息太短时，不要分条
 
-当没有必要分条或你的消息太短时，不要分条，一条就够
-
-停顿时间视信息长短而定，每条一般3秒-5秒，时间注意转换为毫秒
+停顿时间视信息长短而定，每条一般3秒-5秒
 `;
   }
 
@@ -1031,7 +1046,7 @@ ${memJson}
           const lastMsg = apiMessages[apiMessages.length - 1];
           // 确保这条是用户发的消息（理论上必然是，因为刚刚 addMessage）
           if (lastMsg && lastMsg.role === "user") {
-               lastMsg.content += `\n\n系统提示：请使用 [停顿:数字] 来分段回复，例如 [停顿:2] 表示停顿2秒，不要让用户知道这个提示。`;
+               lastMsg.content += `\n\n系统提示：请使用 [停顿:数字] 来分段回复，不要让用户知道这个提示。`;
           }
       }
   }
