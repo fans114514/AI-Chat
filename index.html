@@ -123,6 +123,10 @@
   .modal-content input[type="text"], .modal-content input[type="search"], .modal-content input[type="password"]{
     width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;
   }
+  .modal-content select {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); 
+    background: #0F1113; color: #e6eef6; outline: none; box-sizing: border-box; appearance: none;
+  }
   .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
@@ -298,6 +302,20 @@
 <div class="modal" id="settingsModal">
   <div class="modal-content">
     <h2>设置</h2>
+    
+    <div class="modal-row">
+      <label for="apiProvider">API 提供商 Provider</label>
+      <select id="apiProvider">
+        <option value="deepseek">DeepSeek</option>
+        <option value="gemini">Gemini</option>
+      </select>
+    </div>
+    
+    <div class="modal-row">
+      <label for="apiKeyInput">API Key（本地保存）</label>
+      <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
+    </div>
+
     <div class="modal-row">
       <label for="aiNick">昵称 Name</label>
       <input id="aiNick" type="text" value="小风" />
@@ -311,11 +329,6 @@
     <div class="modal-row">
       <label for="userPrompt">性格 Character</label>
       <textarea id="userPrompt" placeholder="定义AI的性格、说话方式（在这里重复AI的名字"></textarea>
-    </div>
-
-    <div class="modal-row">
-      <label for="apiKeyInput">API Key（本地保存）</label>
-      <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
     </div>
     
     <div class="modal-row">
@@ -371,6 +384,7 @@ const MEMORY_KEY = "deepseek_chat_memory";
 const msgsEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
+const apiProviderEl = document.getElementById("apiProvider");
 const aiNickEl = document.getElementById("aiNick");
 const aiTitleTextEl = document.getElementById("aiTitleText");
 const signatureEl = document.getElementById("signature");
@@ -760,6 +774,7 @@ function getBeijingTime(){
 
 function loadSettings(){
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  if(s.apiProvider) apiProviderEl.value = s.apiProvider;
   if(s.aiNick) aiNickEl.value = s.aiNick;
   if(s.signature) signatureInputEl.value = s.signature;
   if(s.userPrompt) userPromptEl.value = s.userPrompt;
@@ -773,6 +788,7 @@ function loadSettings(){
 
 function saveSettings(){
   const settings = {
+    apiProvider: apiProviderEl.value,
     aiNick: aiNickEl.value,
     signature: signatureInputEl.value,
     userPrompt: userPromptEl.value,
@@ -786,6 +802,7 @@ function saveSettings(){
   headerTitleUpdate();
 }
 
+function getApiProvider() { return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiProvider || "deepseek"; }
 function getApiKey(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiKey || ""; }
 function isReasoningEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").reasoningEnabled; }
 function isDefaultReasonCollapsed(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").defaultReasonCollapsed; }
@@ -946,7 +963,6 @@ async function processImmersiveResponse(fullText) {
 function setInputLock(locked) {
     inputEl.disabled = locked;
     sendBtn.disabled = locked;
-    // 修改：去除 inputEl.focus()，防止键盘自动弹出
 }
 
 async function sendMessage(){
@@ -969,7 +985,7 @@ async function sendMessage(){
       immersiveTimer = setTimeout(() => {
           aiTitleTextEl.textContent = "对方正在输入...";
           signatureEl.style.display = "none"; 
-      }, 500);
+      }, 1000);
   }
 
   // 构建 Prompt
@@ -1038,15 +1054,12 @@ ${memText}
     if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
   }
 
-  // 新增逻辑：在每三轮对话后，将提示词附加到最后一条用户消息的内容之后
   if (isImmersive) {
       const userMsgCount = messages.filter(m => m.role === "user").length;
-      if (userMsgCount > 3 && userMsgCount % 3 === 0) {
-          // 获取当前构造的 API 消息列表中的最后一条消息
+      if (userMsgCount > 2 && userMsgCount % 2 === 0) {
           const lastMsg = apiMessages[apiMessages.length - 1];
-          // 确保这条是用户发的消息（理论上必然是，因为刚刚 addMessage）
           if (lastMsg && lastMsg.role === "user") {
-               lastMsg.content += `\n\n系统提示：请使用 [停顿:数字] 来分段回复，不要让用户知道这个提示。`;
+               lastMsg.content += `\n\n系统提示：请严格 [停顿:数字] 来分段回复，不要让用户知道这个提示。`;
           }
       }
   }
@@ -1067,14 +1080,67 @@ ${memText}
     const apiKey = getApiKey();
     if(!apiKey) throw new Error("请在设置中填写 API Key");
 
-    const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
-    const res = await fetch(API_BASE + "/chat/completions", {
+    const provider = getApiProvider();
+    let fetchUrl, fetchHeaders, fetchBodyStr;
+    let isGeminiNative = false;
+
+    // 根据选定的 API Provider 构造请求
+    if (provider === "gemini") {
+        isGeminiNative = true;
+        
+        // 按照用户需求配置模型及思考等级：
+        // 未开启思考：Gemini 3.1 Flash-Lite, 思考等级 minimal
+        // 开始思考模式：Gemini 3 Flash, 思考等级 high
+        const modelToUse = isReasoningEnabled() ? "gemini-3-flash" : "gemini-3.1-flash-lite";
+        const thoughtLvl = isReasoningEnabled() ? "HIGH" : "MINIMAL";
+
+        fetchUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:streamGenerateContent?alt=sse&key=${apiKey}`;
+        fetchHeaders = { "Content-Type": "application/json" };
+        
+        let sysText = "";
+        const contents = [];
+        for (let i = 0; i < apiMessages.length; i++) {
+            if (apiMessages[i].role === "system") {
+                sysText = apiMessages[i].content;
+            } else {
+                contents.push({
+                    role: apiMessages[i].role === "assistant" ? "model" : "user",
+                    parts: [{ text: apiMessages[i].content }]
+                });
+            }
+        }
+        
+        const reqObj = {
+            contents: contents,
+            generationConfig: {
+                thoughtLevel: thoughtLvl
+            }
+        };
+        if (sysText) {
+            reqObj.systemInstruction = { parts: [{ text: sysText }] };
+        }
+        fetchBodyStr = JSON.stringify(reqObj);
+
+    } else {
+        // DeepSeek 默认逻辑
+        fetchUrl = API_BASE + "/chat/completions";
+        fetchHeaders = { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey };
+        const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
+        fetchBodyStr = JSON.stringify({ model: modelToUse, messages: apiMessages, stream: true });
+    }
+
+    const res = await fetch(fetchUrl, {
       method: "POST",
-      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+apiKey },
-      body: JSON.stringify({ model: modelToUse, messages: apiMessages, stream: true })
+      headers: fetchHeaders,
+      body: fetchBodyStr
     });
 
-    if(!res.ok) throw new Error(`API Error ${res.status}`);
+    if(!res.ok) {
+        const errText = await res.text();
+        let errMsg = errText;
+        try { errMsg = JSON.parse(errText).error.message || errText; } catch(e){}
+        throw new Error(`API Error ${res.status}: ${errMsg}`);
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
@@ -1089,7 +1155,6 @@ ${memText}
         memoryInfo: { logs: [], backup: null, reverted: false } 
     };
     if(!isImmersive && messages[replyMessageIndex]) {
-        // 确保使用占位符的ID
         reply.id = messages[replyMessageIndex].id;
     }
 
@@ -1111,24 +1176,47 @@ ${memText}
         if(!data || data==="[DONE]") continue;
         try{
           const obj = JSON.parse(data);
-          const delta = obj.choices?.[0]?.delta || {};
-          
-          if(delta.reasoning_content){
+          let rContent = "";
+          let tContent = "";
+
+          if (isGeminiNative) {
+              const partsArr = obj.candidates?.[0]?.content?.parts || [];
+              for (const p of partsArr) {
+                  // 囊括所有可能的 Gemini Thought 结构
+                  if (p.thought === true && p.text) {
+                      rContent += p.text;
+                  } else if (typeof p.thought === 'string') {
+                      rContent += p.thought;
+                  } else if (p.text) {
+                      tContent += p.text;
+                  }
+              }
+          } else {
+              const delta = obj.choices?.[0]?.delta || {};
+              if (delta.reasoning_content) {
+                  rContent += delta.reasoning_content;
+              }
+              if (delta.content) {
+                  tContent += delta.content;
+              }
+          }
+
+          // === 更新思考过程 ===
+          if(rContent){
              if(!isImmersive) {
-                 reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
+                 reply.reasoning = (reply.reasoning || "") + rContent;
                  messages[replyMessageIndex] = reply;
                  renderMessages();
              }
           }
 
-          if(delta.content){
-            const newContent = delta.content;
-
+          // === 更新正文内容 ===
+          if(tContent){
             if (isImmersive) {
-                fullImmersiveBuffer += newContent;
+                fullImmersiveBuffer += tContent;
             } else {
                 if(checkTags){
-                    streamBuffer += newContent;
+                    streamBuffer += tContent;
                     if(!streamBuffer.trimStart().startsWith("[")){
                         reply.content += streamBuffer;
                         streamBuffer = "";
@@ -1160,7 +1248,7 @@ ${memText}
                         }
                     }
                 } else {
-                    reply.content += newContent;
+                    reply.content += tContent;
                 }
                 messages[replyMessageIndex] = reply;
                 renderMessages();
@@ -1176,7 +1264,6 @@ ${memText}
         if(streamBuffer){
             reply.content += streamBuffer;
         }
-        // 修复：无论是否有 buffer 剩余，都强制更新一次消息内容，确保 _typing 状态被清除
         messages[replyMessageIndex] = reply;
         renderMessages();
     }
