@@ -1005,7 +1005,7 @@ async function sendMessage(){
     let fetchBody = "";
 
     if (isGemini) {
-        const modelToUse = isReasoningEnabled() ? "gemini-3-flash" : "gemini-3.1-flash-lite";
+        const modelToUse = isReasoningEnabled() ? "gemini-3.1-flash-lite-preview";
         const geminiMessages = apiMessages.map(m => ({
             role: m.role === "user" ? "user" : "model",
             parts: [{ text: m.content }]
