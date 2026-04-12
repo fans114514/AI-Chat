@@ -1,989 +1,936 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>DeepSeek Chat by 风扇</title>
-
-<!-- highlight.js for client-side syntax highlighting -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-
-<!-- KaTeX for math rendering -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
-
-<style>
-  :root{
-    --bg:#0F1113;
-    --panel:#191B1E;
-    --muted:#8b949e;
-    --bubble:#242628;
-    --accent:#0066CC;
-    --radius:14px;
-    --safe-bottom: env(safe-area-inset-bottom, 12px);
-    --bottom-height: 76px;
-  }
-  html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family: Inter, "Helvetica Neue", Arial, sans-serif;-webkit-font-smoothing:antialiased}
-  .app{display:flex;flex-direction:column;min-height:100vh;gap:0}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DeepSeek Chat UI</title>
   
-  /* Header: 增加 z-index 确保滚动时在最上层 */
-  header{
-    padding:14px 12px;
-    background:var(--panel);
-    border-bottom:1px solid rgba(255,255,255,0.05);
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  
-  .ai-box{display:flex;flex-direction:column}
-  .ai-title{font-weight:600;font-size:16px;letter-spacing:0.2px;display:flex;align-items:center;}
-  .signature{font-size:12px;color:var(--muted);margin-top:4px}
-  
-  /* Main: 滚动区域 */
-  main{flex:1;overflow:auto;padding:16px;padding-bottom:calc(var(--bottom-height) + var(--safe-bottom));display:flex;flex-direction:column;gap:12px}
-  .messages{display:flex;flex-direction:column;gap:12px;align-items:stretch}
-  
-  /* 消息动效 */
-  @keyframes msgSlideIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .msg {
-    max-width:78%;
-    padding:10px 12px;
-    border-radius:12px;
-    font-size:15px;
-    line-height:1.45;
-    word-break:break-word;
-    white-space:pre-wrap;
-    background:var(--bubble);
-    /* 默认带上入场动画 */
-    animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
-  }
-  
-  /* 去除已经在 DOM 中的消息的动画，防止重绘闪烁（由JS控制类名） */
-  .msg.no-anim { animation: none; }
+  <!-- Markdown / Code / Math Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
 
-  .msg.user{margin-left:auto;text-align:left}
-  .msg.ai{margin-right:auto;text-align:left;position: relative;}
-  
-  /* 连续消息样式微调 */
-  .msg.ai.group-follow {
-    margin-top: -8px; /* 紧贴上一条 */
-    border-top-left-radius: 4px; /* 左上角变直一点 */
-  }
+  <style>
+    /* ==========================================================================
+       DeepSeek Chat UI - 样式表
+       ========================================================================== */
+    :root {
+      --bg: #0F1113;
+      --panel: #191B1E;
+      --muted: #8b949e;
+      --bubble: #242628;
+      --accent: #0066CC;
+      --radius: 14px;
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
+      --bottom-height: 76px;
+    }
 
-  .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
-  .nick{font-weight:700;color:#fff;display:flex;align-items:center}
-  .typing-dots{display:inline-flex;gap:6px;margin-top:2px}
-  .typing-dots span{width:6px;height:6px;background:var(--muted);border-radius:50%;display:inline-block;animation:blink 1.4s infinite}
-  .typing-dots span:nth-child(2){animation-delay:0.2s}
-  .typing-dots span:nth-child(3){animation-delay:0.4s}
-  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
-  
-  .messages-spacer{height:var(--bottom-height);flex-shrink:0}
-  
-  .bottom{position:fixed;left:0;right:0;padding:12px 12px calc(12px + var(--safe-bottom));backdrop-filter: blur(6px);background:var(--panel);border-top:1px solid rgba(255,255,255,0.05);z-index:8;transition:bottom 160ms ease}
-  .composer{display:flex;gap:8px;align-items:center}
-  
-  textarea#input{
-    flex:1;min-height:44px;max-height:240px;border-radius:12px;
-    border:1px solid rgba(255,255,255,0.08);background:#1a1c1e;
-    padding:12px 14px;color:#e6eef6;resize:none;font-size:15px;
-    overflow-y:auto;line-height:1.4;
-    transition:width 160ms ease,height 160ms ease,padding 160ms ease, opacity 0.2s;
-  }
-  /* 锁定状态样式 */
-  textarea#input:disabled {
-    opacity: 0.5;
-    background: #111;
-    cursor: not-allowed;
-  }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: #e6eef6;
+      font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
 
-  .send-btn{background:var(--accent);color:white;padding:10px 12px;border-radius:12px;border:none;font-weight:600;cursor:pointer; transition: opacity 0.2s;}
-  .send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  .settings-btn,.clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:8px}
+    .app { display: flex; flex-direction: column; min-height: 100vh; gap: 0; }
 
-  /* Modal */
-  .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:200}
-  .modal-content{background:var(--panel);padding:18px;border-radius:var(--radius);width:92%;max-width:520px;box-shadow:0 0 10px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:6px}
-  .modal-content h2{margin:0 0 8px 0;font-size:18px}
-  .modal-row{display:flex;flex-direction:column;gap:6px;}
-  .modal-content label{color:var(--muted);font-size:13px}
-  .modal-content input[type="text"], .modal-content input[type="search"], .modal-content input[type="password"]{
-    width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;
-  }
-  .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
-  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
-  .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
-  .btn.save{Background:var(--accent);color:#fff}
-  .btn.danger{background:#d32f2f;color:#fff}
-  .btn.close{background:#333;color:#ccc}
-  /* 超链接样式的按钮 */
-  .link-btn {
-      background: none; border: none; color: var(--accent);
-      text-decoration: underline; cursor: pointer; font-size: 13px; 
-      padding: 0; align-self: flex-start; margin-top: 4px;
-  }
+    header {
+      padding: 10px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      min-height: 60px;
+      box-sizing: border-box;
+    }
 
-  main, .messages {scroll-behavior: smooth;}
+    /* AI状态头部样式 */
+    .ai-box { display: flex; flex-direction: column; justify-content: center; height: 42px; }
+    .ai-title { font-weight: 600; font-size: 16px; letter-spacing: 0.2px; display: flex; align-items: center; transition: all 0.3s; }
+    .signature { font-size: 12px; color: var(--muted); margin-top: 4px; transition: all 0.3s; height: 14px; overflow: hidden; }
+    .signature.hidden { height: 0; opacity: 0; margin-top: 0; }
 
-  /* Markdown & Code */
-  .msg pre {
-    background: #0b0c0d; border-radius:8px; padding:12px; margin:6px 0; overflow:auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
-    font-size:13px; line-height:1.45; border:1px solid rgba(255,255,255,0.04);
-    white-space:pre; word-break:normal; position:relative;
-  }
-  .msg code.inline {
-    background: rgba(255,255,255,0.03); padding:2px 6px; border-radius:6px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
-    font-size:13px;
-  }
-  .msg h1, .msg h2, .msg h3, .msg h4 { margin:8px 0 6px; color:#fff; }
-  .msg p{margin:6px 0}
-  .msg ul, .msg ol{margin:6px 0 8px 18px;padding:0}
-  .msg li{margin:6px 0}
-  .msg blockquote{
-    margin:6px 0;padding:8px 12px;border-left:3px solid rgba(255,255,255,0.06);
-    color:var(--muted);background:rgba(255,255,255,0.02);border-radius:8px;
-  }
-  .msg a{color:var(--accent);text-decoration:none}
-  .code-controls { position:absolute; top:8px; right:8px; display:flex; gap:6px; align-items:center; z-index:5; }
-  .copy-btn { background: rgba(255,255,255,0.06); color: #e6eef6; border: none; padding:6px 8px; border-radius:8px; font-size:12px; cursor:pointer; backdrop-filter: blur(4px); }
-  .lang-badge { background: rgba(255,255,255,0.03); color: var(--muted); padding:4px 6px; border-radius:8px; font-size:11px; }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; display:flex; align-items:center; justify-content:center; padding: 6px; border-radius: 6px;}
+    .icon-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
 
-  @media (max-height:600px){ .modal-content{max-height:80vh;overflow:auto} }
+    main {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      padding-bottom: calc(var(--bottom-height) + var(--safe-bottom) + 20px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
 
-  /* Reasoning */
-  .reasoning-box {
-    margin-top:8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03);
-    padding:10px; border-radius:10px; color:var(--muted); font-size:13px; line-height:1.45;
-  }
-  .reasoning-toggle { 
-    display:flex; 
-    justify-content:space-between; 
-    align-items:center; 
-    gap:8px; 
-    margin-top:8px; 
-    /* 【修复】防止被父级pre-wrap影响导致布局错乱 */
-    white-space: normal; 
-  }
-  .reasoning-toggle button { background: transparent; color: var(--muted); border:1px solid rgba(255,255,255,0.04); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:12px; }
-  .reason-label { font-size:12px;color:var(--muted); }
-  textarea.collapsed { width: 160px; padding-top:8px; padding-bottom:8px; height:44px; }
-  textarea.expanded { width: auto; flex:1; }
-  @media (max-width:420px){ textarea.collapsed { width: 120px; } }
-  .toggle-row{display:flex;align-items:center;gap:10px;}
-  .toggle-desc{color:var(--muted);font-size:13px}
+    .messages { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
 
-  /* Memory Manager */
-  .memory-list {
-    display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto;
-    border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 8px; background: #151719;
-  }
-  .memory-item { display: flex; gap: 6px; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 6px; align-items: center; }
-  .memory-index { color: var(--muted); font-size: 11px; min-width: 20px; }
-  .memory-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
-  .memory-btn:hover { color: #d32f2f; }
-  
-  /* Message-Inline Memory Notice */
-  .memory-notice-box {
-    margin-top: 10px;
-    background: rgba(40, 60, 80, 0.4);
-    border: 1px solid rgba(0, 102, 204, 0.3);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 12px;
-    color: #e6eef6;
-  }
-  .memory-notice-header {
-    display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #8cb4ff;
-  }
-  .memory-notice-btn {
-    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px;
-  }
-  .memory-notice-btn:hover { color: #fff; text-decoration: underline; }
-  .memory-notice-content {
-    margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);
-    display: none; /* Default hidden */
-  }
-  .memory-log-line { margin-bottom: 4px; color: #ccc; }
-  .memory-undo-btn {
-    margin-top: 6px; background: rgba(255,255,255,0.1); border: none; color: #fff;
-    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;
-  }
-  .memory-undo-btn:hover { background: rgba(255,255,255,0.2); }
-  .memory-restored-text { color: var(--muted); font-style: italic; margin-top: 4px; }
-  
-  /* 确保 msg-content 内部布局整洁 */
-  .msg-content { display: flex; flex-direction: column; }
+    .msg {
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+      background: var(--bubble);
+      animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
+    }
+    .msg.no-anim { animation: none; }
+    .msg.user { margin-left: auto; text-align: left; background: var(--accent); }
+    .msg.ai { margin-right: auto; text-align: left; position: relative; }
+    .msg.ai.group-follow { margin-top: -8px; border-top-left-radius: 4px; }
 
-</style>
+    .msg-content { display: flex; flex-direction: column; }
+    .meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .nick { font-weight: 700; color: #fff; display: flex; align-items: center; }
+
+    /* 等待AI回复时的加载动画（不在气泡内） */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      margin-right: auto;
+      animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
+    }
+    .typing-indicator span {
+      width: 6px;
+      height: 6px;
+      background-color: var(--muted);
+      border-radius: 50%;
+      animation: typingPulse 1.4s infinite ease-in-out both;
+    }
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes typingPulse {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    .bottom {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      padding: 12px 12px calc(12px + var(--safe-bottom));
+      backdrop-filter: blur(10px);
+      background: rgba(25, 27, 30, 0.85);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      z-index: 8;
+    }
+
+    .composer { display: flex; gap: 8px; align-items: flex-end; }
+    textarea#input {
+      flex: 1; min-height: 44px; max-height: 160px;
+      border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #1a1c1e; padding: 12px 14px; color: #e6eef6;
+      resize: none; font-size: 15px; overflow-y: auto; line-height: 1.4;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; box-sizing: border-box;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    textarea#input::-webkit-scrollbar { display: none; }
+    textarea#input:disabled { opacity: 0.5; background: #111; cursor: not-allowed; }
+    textarea.collapsed { height: 44px; }
+
+    .send-btn {
+      background: var(--accent); color: white; height: 44px; padding: 0 16px;
+      border-radius: 12px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Markdown 样式 */
+    .msg pre { background: #0b0c0d; border-radius: 8px; padding: 36px 12px 12px; margin: 6px 0; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.45; border: 1px solid rgba(255, 255, 255, 0.04); position: relative; }
+    .msg code.inline { background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 6px; font-family: ui-monospace, monospace; font-size: 13px; color: #ff7b72; }
+    .msg table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+    .msg th, .msg td { border: 1px solid rgba(255,255,255,0.1); padding: 6px 8px; font-size: 14px;}
+    .msg th { background: rgba(255,255,255,0.05); }
+    .msg h1, .msg h2, .msg h3 { margin: 8px 0 6px; color: #fff; }
+    .msg p { margin: 6px 0; }
+    .msg ul, .msg ol { margin: 6px 0 8px 18px; padding: 0; }
+    .msg blockquote { margin: 6px 0; padding: 8px 12px; border-left: 3px solid var(--accent); color: var(--muted); background: rgba(255, 255, 255, 0.02); border-radius: 0 8px 8px 0; }
+    .msg a { color: var(--accent); text-decoration: none; }
+
+    .code-controls { position: absolute; top: 4px; right: 4px; display: flex; gap: 6px; align-items: center; z-index: 5; }
+    .copy-btn { background: rgba(255, 255, 255, 0.1); color: #e6eef6; border: none; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+    .lang-badge { color: var(--muted); padding: 4px 6px; font-size: 11px; position: absolute; top: 8px; left: 12px; font-weight: 600; text-transform: uppercase;}
+
+    /* 深度思考 UI */
+    .reasoning-box { margin-bottom: 8px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 10px; color: var(--muted); font-size: 13px; line-height: 1.5; overflow: hidden; }
+    .reasoning-toggle { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; cursor: pointer; background: rgba(255, 255, 255, 0.01); }
+    .reasoning-toggle:hover { background: rgba(255, 255, 255, 0.03); }
+    .reason-label { font-size: 13px; font-weight: 600; color: #aaa; display: flex; align-items: center; gap: 6px; }
+    .reasoning-toggle button { background: rgba(255, 255, 255, 0.05); border: none; color: #fff; cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
+    .reasoning-toggle button:hover { background: rgba(255, 255, 255, 0.15); }
+    .reasoning-content { padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, 0.03); white-space: pre-wrap; font-family: inherit; }
+
+    /* 记忆列表和通知 UI */
+    .memory-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px; background: #151719; }
+    .memory-item { display: flex; gap: 8px; background: rgba(255, 255, 255, 0.03); padding: 8px; border-radius: 6px; align-items: flex-start; }
+    .memory-text { flex: 1; font-size: 13px; color: #e6eef6; outline: none; }
+    .memory-text[contenteditable="true"] { background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; border: 1px solid var(--accent); }
+    .memory-actions { display: flex; gap: 6px; }
+    .memory-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .memory-btn:hover { color: #fff; }
+
+    .memory-notice-box { margin-top: 8px; background: rgba(40, 60, 80, 0.4); border: 1px solid rgba(0, 102, 204, 0.3); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #e6eef6; }
+    .memory-notice-header { font-weight: 600; color: #8cb4ff; display: flex; justify-content: space-between; cursor: pointer; align-items: center; user-select: none; }
+    .memory-notice-header:hover { opacity: 0.8; }
+    .memory-notice-details { border-top: 1px solid rgba(0,102,204,0.3); margin-top: 8px; padding-top: 8px; }
+
+    /* Modals */
+    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 200; backdrop-filter: blur(2px); }
+    .modal.active { display: flex; }
+    .modal-content { background: var(--panel); padding: 20px; border-radius: var(--radius); width: 90%; max-width: 480px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; }
+    .modal-content h2 { margin: 0; font-size: 18px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+    .modal-row { display: flex; flex-direction: column; gap: 6px; }
+    .modal-row label { color: var(--muted); font-size: 13px; }
+    .modal-content input[type="text"], .modal-content input[type="password"] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); background: #0F1113; color: #fff; outline: none; box-sizing: border-box; }
+    .modal-content select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); background: #0F1113; color: #fff; outline: none; }
+    .modal-content textarea { width: 100%; min-height: 80px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); background: #0F1113; color: #fff; outline: none; box-sizing: border-box; resize: vertical; }
+    
+    .modal-row-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255, 255, 255, 0.05); color: #fff; width: 100%; text-align: left; display: flex; justify-content: space-between; padding: 12px; border-radius: 8px; cursor: pointer; align-items: center; font-size: 14px; transition: background 0.2s;}
+    .modal-row-btn:hover { background: rgba(255,255,255,0.06); }
+    .modal-row-btn span { color: var(--muted); font-size: 12px; }
+
+    .toggle-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+    .toggle-desc { color: var(--muted); font-size: 13px; }
+    
+    /* Toggle Switch */
+    .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 22px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--accent); }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+    .btn.save { background: var(--accent); color: #fff; }
+    .btn.close { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.1); }
+
+    @keyframes msgSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
+
 <div class="app">
   <header>
     <div class="ai-box">
-      <div class="ai-title" id="headerTitle">
-        <div id="aiTitleText">和deepseek聊天！</div>
-      </div>
-      <div class="signature" id="signature"></div>
+      <div class="ai-title" id="ui-nickname">New Friend</div>
+      <div class="signature" id="ui-bio">Say hello to your new AI friend</div>
     </div>
-    <div>
-      <button class="clear-btn" id="clearHistory" title="清除历史">🗑️</button>
-      <button class="settings-btn" id="openSettings" title="设置">⚙️</button>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="clearChat()" title="清空对话">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+        </svg>
+      </button>
+      <button class="icon-btn" onclick="openSettings()" title="设置">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
   </header>
-  <main>
-    <div class="messages" id="messages"></div>
-    <!-- 垫片，确保内容不被底部遮挡 -->
-    <div class="messages-spacer" id="msgSpacer"></div>
-  </main>
-  
-  <div class="bottom" id="bottom">
+
+  <main class="messages" id="chat-container"></main>
+
+  <div class="bottom">
     <div class="composer">
-      <textarea id="input" placeholder="Enter your text." rows="1" aria-label="消息输入"></textarea>
-      <button id="send" class="send-btn">发送</button>
+      <textarea id="input" class="collapsed" placeholder="Type a message..." rows="1"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">发送</button>
     </div>
   </div>
 </div>
 
-<!-- 清空历史确认弹窗 -->
-<div class="modal" id="confirmModal">
-    <div class="modal-content" style="max-width: 320px;">
-        <h2 style="font-size: 16px;">清除历史</h2>
-        <div style="font-size: 14px; color: var(--muted); margin-bottom: 12px;">
-            确定要清空所有聊天记录吗？此操作无法撤销。
-        </div>
-        <div class="modal-actions">
-            <button class="btn close" id="cancelClear">取消</button>
-            <button class="btn danger" id="confirmClear">确定清空</button>
-        </div>
-    </div>
-</div>
-
-<!-- 记忆管理弹窗 -->
-<div class="modal" id="memoryModal">
-  <div class="modal-content">
-    <h2>记忆管理</h2>
-    <div class="modal-row">
-       <label>已存储的记忆 (Memories)</label>
-       <div class="memory-list" id="memoryListContainer">
-         <!-- JS 填充 -->
-       </div>
-    </div>
-    <div class="modal-row">
-       <label>手动添加记忆</label>
-       <input type="text" id="manualMemoryInput" placeholder="输入内容后回车添加">
-    </div>
-    <div class="modal-actions">
-      <button class="btn close" id="closeMemoryModal">关闭</button>
-      <button class="btn save" id="saveMemoryModal">保存修改</button>
-    </div>
-  </div>
-</div>
-
-<!-- 设置弹窗 -->
-<div class="modal" id="settingsModal">
+<!-- 主设置 Modal -->
+<div class="modal" id="settings-modal">
   <div class="modal-content">
     <h2>设置</h2>
-    <div class="modal-row">
-      <label for="aiNick">昵称 Name</label>
-      <input id="aiNick" type="text" value="小风" />
-    </div>
-
-    <div class="modal-row">
-      <label for="signatureInput">个签 Introduction</label>
-      <input id="signatureInput" type="text" placeholder="例如：Fly to the sky" />
-    </div>
-
-    <div class="modal-row">
-      <label for="userPrompt">性格 Character</label>
-      <textarea id="userPrompt" placeholder="定义AI的性格、说话方式（在这里重复AI的名字"></textarea>
-    </div>
-
-    <div class="modal-row">
-      <label for="apiKeyInput">API Key（本地保存）</label>
-      <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
-    </div>
     
     <div class="modal-row">
-        <label>视觉体验</label>
-        <div class="toggle-row">
-          <input id="immersiveToggle" type="checkbox" />
-          <div class="toggle-desc">沉浸模式</div>
-        </div>
+      <label>模型引擎</label>
+      <select id="cfg-engine" onchange="switchEngine()">
+        <option value="deepseek">DeepSeek (API)</option>
+        <option value="gemini">Google Gemini (API)</option>
+      </select>
     </div>
 
     <div class="modal-row">
-      <label for="reasoningToggle">深度思考</label>
-      <div class="toggle-row">
-        <input id="reasoningToggle" type="checkbox" />
-        <div class="toggle-desc">开启后将深度思考</div>
-      </div>
+      <label>API Key</label>
+      <input type="text" id="cfg-apikey" placeholder="输入对应模型的 API Key" oninput="updateTempKey()">
     </div>
 
     <div class="modal-row">
-      <div class="toggle-row">
-        <input id="defaultReasonCollapsedToggle" type="checkbox" />
-        <div class="toggle-desc">开启后将默认不展示思维链</div>
-      </div>
+      <label>昵称 Name</label>
+      <input type="text" id="cfg-nickname" placeholder="New Friend">
     </div>
 
-    <!-- 记忆功能开关 -->
     <div class="modal-row">
-      <label>长期记忆 </label>
-      <div class="toggle-row">
-        <input id="memoryToggle" type="checkbox" />
-        <div class="toggle-desc">开启记忆功能（开启深度思考功能最佳）</div>
+      <label>个性签名 Tagline</label>
+      <input type="text" id="cfg-bio" placeholder="Say hello to your new AI friend">
+    </div>
+
+    <div class="modal-row">
+      <label>人设 Prompt</label>
+      <textarea id="cfg-personality" placeholder="你是一个有用的助手..."></textarea>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
+        <strong>深度思考</strong><br>
+        <span style="font-size:11px">若开启记忆功能建议开启，否则将会污染记忆</span>
       </div>
-      <!-- 样式修改：做成超链接形式 -->
-      <button class="link-btn" id="openMemoryManager">进入记忆管理界面</button>
+      <label class="switch"><input type="checkbox" id="cfg-thinking"><span class="slider"></span></label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
+        <strong>沉浸模式</strong><br>
+        <span style="font-size:11px">获得类似于真人的对话体验</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-immersive"><span class="slider"></span></label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
+        <strong>默认折叠思维链</strong><br>
+        <span style="font-size:11px">开启后思维链将不进行默认地展开</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-fold-thinking"><span class="slider"></span></label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
+        <strong>记忆功能</strong><br>
+        <span style="font-size:11px">允许AI长期记住信息，即使是清除对话后</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-memory" onchange="toggleMemoryUI()"><span class="slider"></span></label>
+    </div>
+
+    <div class="modal-row" id="memory-manage-row" style="display: none; margin-top: 4px;">
+      <button class="modal-row-btn" onclick="openMemoryModal()">
+        管理记忆库 <span>></span>
+      </button>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
+        <strong>开场白</strong><br>
+        <span style="font-size:11px">想让AI给你打招呼吗？</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-greeting" onchange="toggleGreetingUI()"><span class="slider"></span></label>
+    </div>
+
+    <div class="modal-row" id="greeting-manage-row" style="display: none; margin-top: 4px;">
+      <button class="modal-row-btn" onclick="openGreetingModal()">
+        管理开场白 <span>></span>
+      </button>
     </div>
 
     <div class="modal-actions">
-      <button class="btn close" id="closeSettings">取消</button>
-      <button class="btn save" id="saveSettings">保存</button>
+      <button class="btn close" onclick="closeSettings()">取消</button>
+      <button class="btn save" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 二级管理弹窗：记忆库 -->
+<div class="modal" id="memory-modal" style="z-index: 210;">
+  <div class="modal-content">
+    <h2>记忆库管理</h2>
+    <div class="memory-list" id="memory-list" style="max-height: 40vh; margin-top: 10px;"></div>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="new-memory-input" placeholder="手动添加记忆..." style="flex:1; padding:8px; border-radius:6px; background:#0F1113; border:1px solid rgba(255,255,255,0.1); color:#fff; font-size: 13px;">
+      <button class="btn save" style="padding:6px 12px;" onclick="manualAddMemory()">添加</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn close" onclick="closeMemoryModal()">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 二级管理弹窗：开场白 -->
+<div class="modal" id="greeting-modal" style="z-index: 210;">
+  <div class="modal-content">
+    <h2>开场白管理</h2>
+    <div class="memory-list" id="greeting-list" style="max-height: 40vh; margin-top: 10px;"></div>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="new-greeting-input" placeholder="手动添加开场白..." style="flex:1; padding:8px; border-radius:6px; background:#0F1113; border:1px solid rgba(255,255,255,0.1); color:#fff; font-size: 13px;">
+      <button class="btn save" style="padding:6px 12px;" onclick="manualAddGreeting()">添加</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn close" onclick="closeGreetingModal()">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认与提示框通用模态 -->
+<div class="modal" id="confirm-modal" style="z-index: 300;">
+  <div class="modal-content" style="max-width: 320px;">
+    <h2 id="confirm-title" style="border:none; padding-bottom: 0;">确认</h2>
+    <div style="color: var(--muted); font-size: 14px; margin: 10px 0;" id="confirm-msg"></div>
+    <div class="modal-actions">
+      <button class="btn close" id="confirm-cancel" onclick="closeConfirmModal()">取消</button>
+      <button class="btn save" id="confirm-btn">确定</button>
     </div>
   </div>
 </div>
 
 <script>
+/* ==========================================================================
+   全局配置与状态管理
+   ========================================================================== */
+const DEFAULT_CONFIG = {
+  engine: 'deepseek',
+  apiKey_deepseek: '',
+  apiKey_gemini: '',
+  nickname: '新朋友',
+  bio: 'Say hello to your new AI friend',
+  personality: '你是一个AI伙伴',
+  thinking: true,
+  immersive: false,
+  foldThinking: true,
+  memory: true,
+  enableGreeting: false
+};
 
-const API_BASE = "https://api.deepseek.com";
-const MODEL_CHAT = "deepseek-chat";
-const MODEL_REASONER = "deepseek-reasoner";
-const STORAGE_KEY = "deepseek_chat_autosave";
-const SETTINGS_KEY = "deepseek_chat_settings";
-const MEMORY_KEY = "deepseek_chat_memory";
+let config = { ...DEFAULT_CONFIG };
+let chatHistory =[]; 
+let memoryDB = [];
+let greetingsDB =[];
+let tempKeys = { deepseek: '', gemini: '' };
+let currentEngineInSettings = 'deepseek';
+let loadingIndicator = null;
 
-const msgsEl = document.getElementById("messages");
-const inputEl = document.getElementById("input");
-const sendBtn = document.getElementById("send");
-const aiNickEl = document.getElementById("aiNick");
-const aiTitleTextEl = document.getElementById("aiTitleText");
-const signatureEl = document.getElementById("signature");
-const signatureInputEl = document.getElementById("signatureInput");
-const userPromptEl = document.getElementById("userPrompt");
-const apiKeyEl = document.getElementById("apiKeyInput");
-const reasoningToggleEl = document.getElementById("reasoningToggle");
-const defaultReasonCollapsedToggleEl = document.getElementById("defaultReasonCollapsedToggle");
-const memoryToggleEl = document.getElementById("memoryToggle");
-const immersiveToggleEl = document.getElementById("immersiveToggle");
-
-// Modals
-const settingsModal = document.getElementById("settingsModal");
-const openSettingsBtn = document.getElementById("openSettings");
-const closeSettingsBtn = document.getElementById("closeSettings");
-const saveSettingsBtn = document.getElementById("saveSettings");
-const clearHistoryBtn = document.getElementById("clearHistory");
-
-const confirmModal = document.getElementById("confirmModal");
-const confirmClearBtn = document.getElementById("confirmClear");
-const cancelClearBtn = document.getElementById("cancelClear");
-
-const memoryModal = document.getElementById("memoryModal");
-const openMemoryManagerBtn = document.getElementById("openMemoryManager");
-const closeMemoryModalBtn = document.getElementById("closeMemoryModal");
-const saveMemoryModalBtn = document.getElementById("saveMemoryModal");
-const memoryListContainer = document.getElementById("memoryListContainer");
-const manualMemoryInput = document.getElementById("manualMemoryInput");
-
-const bottomEl = document.getElementById("bottom");
-
-let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-let memories = JSON.parse(localStorage.getItem(MEMORY_KEY) || "[]");
-
-/* ------------------ Markdown helpers ------------------ */
-function escapeHtml(str){
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function extractCodeBlocksRaw(text){
-  const codeBlocks = [];
-  let out = "";
-  let pos = 0;
-  while(true){
-    const start = text.indexOf("```", pos);
-    if(start === -1){
-      out += text.slice(pos);
-      break;
-    }
-    out += text.slice(pos, start);
-    const end = text.indexOf("```", start + 3);
-    const between = (end === -1) ? text.slice(start + 3) : text.slice(start + 3, end);
-    const m = between.match(/^([^\n]*)\n([\s\S]*)$/);
-    let lang = "", code = "";
-    if(m){ lang = m[1].trim(); code = m[2]; } else { lang = ""; code = between; }
-    const idx = codeBlocks.length;
-    codeBlocks.push({lang, code});
-    out += `@@CODEBLOCK_${idx}@@`;
-    if(end === -1){ pos = text.length; break; } else { pos = end + 3; continue; }
-  }
-  return {text: out, codeBlocks};
-}
-
-function markdownToHtml(input){
-  if(input === null || input === undefined) return "";
-  let text = String(input).replace(/\r\n/g, "\n");
-  const extracted = extractCodeBlocksRaw(text);
-  text = extracted.text;
-  const codeBlocks = extracted.codeBlocks;
-  const lines = text.split("\n");
-  const outParts = [];
-  let paragraph = null;
-  let inUl = false, inOl = false;
-
-  function flushParagraph(){
-    if(paragraph !== null){ outParts.push(`<p>${paragraph}</p>`); paragraph = null; }
-  }
-
-  for(let i = 0; i < lines.length; i++){
-    let line = lines[i];
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
-    if(headingMatch){
-      flushParagraph();
-      if(inUl){ outParts.push("</ul>"); inUl = false; }
-      if(inOl){ outParts.push("</ol>"); inOl = false; }
-      const level = headingMatch[1].length;
-      outParts.push(`<h${level}>${inlineFormatting(escapeHtml(headingMatch[2]))}</h${level}>`);
-      continue;
-    }
-    if(line.indexOf('|') !== -1 && i + 1 < lines.length){
-      const sepLine = lines[i+1];
-      if(sepLine.match(/^\s*\|?\s*(:?-+:?\s*)(\|\s*:?-+:?\s*)+\|?\s*$/)){
-        flushParagraph();
-        if(inUl){ outParts.push("</ul>"); inUl = false; }
-        if(inOl){ outParts.push("</ol>"); inOl = false; }
-        function splitRow(row){
-          const parts = row.split('|').map(s => s.trim());
-          if(parts.length>0&&parts[0]==="") parts.shift();
-          if(parts.length>0&&parts[parts.length-1]==="") parts.pop();
-          return parts;
+const markedOptions = {
+    gfm: true,
+    breaks: true,
+    highlight: function (code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, { language: lang }).value;
         }
-        const headerCells = splitRow(line);
-        const bodyRows = [];
-        let j = i + 2;
-        for(; j < lines.length; j++){
-          const r = lines[j]; if(r.trim() === "" || r.indexOf('|') === -1) break;
-          bodyRows.push(splitRow(r));
-        }
-        let tableHtml = "<table><thead><tr>";
-        for(const hc of headerCells) tableHtml += `<th>${inlineFormatting(escapeHtml(hc))}</th>`;
-        tableHtml += "</tr></thead>";
-        if(bodyRows.length){
-          tableHtml += "<tbody>";
-          for(const brow of bodyRows){
-            tableHtml += "<tr>";
-            for(const cell of brow) tableHtml += `<td>${inlineFormatting(escapeHtml(cell))}</td>`;
-            tableHtml += "</tr>";
-          }
-          tableHtml += "</tbody>";
-        }
-        tableHtml += "</table>";
-        outParts.push(tableHtml);
-        i = j - 1;
-        continue;
-      }
+        return hljs.highlightAuto(code).value;
     }
-    if(line.trim().startsWith(">")){
-      flushParagraph();
-      if(inUl){ outParts.push("</ul>"); inUl = false; }
-      if(inOl){ outParts.push("</ol>"); inOl = false; }
-      outParts.push(`<blockquote>${inlineFormatting(escapeHtml(line.replace(/^\s*>\s?/, "")))}</blockquote>`);
-      continue;
-    }
-    const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
-    if(ulMatch){
-      flushParagraph();
-      if(inOl){ outParts.push("</ol>"); inOl = false; }
-      if(!inUl){ outParts.push("<ul>"); inUl = true; }
-      outParts.push(`<li>${inlineFormatting(escapeHtml(ulMatch[1]))}</li>`);
-      continue;
-    } else if(inUl && line.trim() === ""){ outParts.push("</ul>"); inUl = false; continue; }
-    const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
-    if(olMatch){
-      flushParagraph();
-      if(inUl){ outParts.push("</ul>"); inUl = false; }
-      if(!inOl){ outParts.push("<ol>"); inOl = true; }
-      outParts.push(`<li>${inlineFormatting(escapeHtml(olMatch[1]))}</li>`);
-      continue;
-    } else if(inOl && line.trim() === ""){ outParts.push("</ol>"); inOl = false; continue; }
+};
+marked.use(markedOptions);
+marked.use(markedKatex({ throwOnError: false }));
 
-    if(line.trim() === ""){ flushParagraph(); continue; }
-    const formatted = inlineFormatting(escapeHtml(line.trim()));
-    paragraph = (paragraph === null) ? formatted : paragraph + " " + formatted;
+const chatContainer = document.getElementById('chat-container');
+const inputArea = document.getElementById('input');
+const sendBtn = document.getElementById('send-btn');
+const uiNickname = document.getElementById('ui-nickname');
+const uiBio = document.getElementById('ui-bio');
+
+/* ==========================================================================
+   初始化与本地存储
+   ========================================================================== */
+function init() {
+  const savedCfg = localStorage.getItem('chatConfig');
+  if (savedCfg) {
+    let parsed = JSON.parse(savedCfg);
+    if(parsed.apiKey && !parsed.apiKey_deepseek && !parsed.apiKey_gemini) {
+      if(parsed.engine === 'deepseek') parsed.apiKey_deepseek = parsed.apiKey;
+      else parsed.apiKey_gemini = parsed.apiKey;
+      delete parsed.apiKey;
+    }
+    config = { ...config, ...parsed };
   }
-  flushParagraph();
-  if(inUl) outParts.push("</ul>");
-  if(inOl) outParts.push("</ol>");
-  let html = outParts.join("\n");
-  html = html.replace(/@@CODEBLOCK_(\d+)@@/g, (m, idx) => {
-    const cb = codeBlocks[Number(idx)]; if(!cb) return "";
-    const langClass = cb.lang ? ` class="language-${escapeHtml(cb.lang)}"` : "";
-    return `<pre><code${langClass}>${escapeHtml(cb.code)}</code></pre>`;
-  });
-  return html;
-}
-
-function inlineFormatting(escapedText){
-  if(!escapedText) return "";
-  const codePlaceholders = [];
-  escapedText = escapedText.replace(/`([^`]+)`/g, (m, code) => {
-    codePlaceholders.push(code); return `@@INLINECODE_${codePlaceholders.length-1}@@`;
-  });
-  escapedText = escapedText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) => `<a href="${(/^(https?:\/\/|mailto:)/i.test(u)?escapeHtml(u):"#")}" target="_blank">${t}</a>`);
-  escapedText = escapedText.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, "$1<em>$2</em>$3");
-  escapedText = escapedText.replace(/@@INLINECODE_(\d+)@@/g, (m, idx) => `<code class="inline">${codePlaceholders[Number(idx)]}</code>`);
-  return escapedText;
-}
-
-/* ------------------ 渲染消息（修复版：去除缩进换行，修复布局问题） ------------------ */
-function renderMessages() {
-  const isImmersive = isImmersiveMode();
   
-  if(messages.length === 0){
-    msgsEl.innerHTML = "";
-    localStorage.setItem(STORAGE_KEY, "[]");
+  const savedHistory = localStorage.getItem('chatHistory');
+  if (savedHistory) chatHistory = JSON.parse(savedHistory);
+
+  const savedMem = localStorage.getItem('memoryDB');
+  if (savedMem) memoryDB = JSON.parse(savedMem);
+
+  const savedGreet = localStorage.getItem('greetingsDB');
+  if (savedGreet) greetingsDB = JSON.parse(savedGreet);
+
+  applyConfigUI();
+  renderHistory();
+  showGreetingIfNeeded();
+  
+  inputArea.addEventListener('input', function() {
+    this.style.height = '44px';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+  });
+
+  inputArea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+}
+
+function saveToLocal() {
+  localStorage.setItem('chatConfig', JSON.stringify(config));
+  localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+  localStorage.setItem('memoryDB', JSON.stringify(memoryDB));
+  localStorage.setItem('greetingsDB', JSON.stringify(greetingsDB));
+}
+
+function applyConfigUI() {
+  uiNickname.innerText = config.nickname;
+  uiBio.innerText = config.bio;
+}
+
+/* ==========================================================================
+   弹窗与UI提示交互
+   ========================================================================== */
+function showAlert(title, msg, onConfirm = null, showCancel = false) {
+  document.getElementById('confirm-title').innerText = title;
+  document.getElementById('confirm-msg').innerText = msg;
+  
+  const cancelBtn = document.getElementById('confirm-cancel');
+  cancelBtn.style.display = showCancel ? 'block' : 'none';
+  
+  const saveBtn = document.getElementById('confirm-btn');
+  saveBtn.onclick = () => {
+    closeConfirmModal();
+    if (onConfirm) onConfirm();
+  };
+  
+  document.getElementById('confirm-modal').classList.add('active');
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').classList.remove('active');
+}
+
+/* ==========================================================================
+   主设置界面交互
+   ========================================================================== */
+function openSettings() {
+  currentEngineInSettings = config.engine;
+  tempKeys.deepseek = config.apiKey_deepseek || '';
+  tempKeys.gemini = config.apiKey_gemini || '';
+
+  document.getElementById('cfg-engine').value = currentEngineInSettings;
+  document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
+  
+  document.getElementById('cfg-nickname').value = config.nickname;
+  document.getElementById('cfg-bio').value = config.bio;
+  document.getElementById('cfg-personality').value = config.personality;
+  document.getElementById('cfg-thinking').checked = config.thinking;
+  document.getElementById('cfg-immersive').checked = config.immersive;
+  document.getElementById('cfg-fold-thinking').checked = config.foldThinking;
+  document.getElementById('cfg-memory').checked = config.memory;
+  document.getElementById('cfg-greeting').checked = config.enableGreeting;
+  
+  toggleMemoryUI();
+  toggleGreetingUI();
+  document.getElementById('settings-modal').classList.add('active');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('active');
+}
+
+function updateTempKey() {
+  tempKeys[currentEngineInSettings] = document.getElementById('cfg-apikey').value.trim();
+}
+
+function switchEngine() {
+  currentEngineInSettings = document.getElementById('cfg-engine').value;
+  document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
+}
+
+function saveSettings() {
+  config.engine = document.getElementById('cfg-engine').value;
+  config.apiKey_deepseek = tempKeys.deepseek;
+  config.apiKey_gemini = tempKeys.gemini;
+  
+  config.nickname = document.getElementById('cfg-nickname').value || 'New Friend';
+  config.bio = document.getElementById('cfg-bio').value;
+  config.personality = document.getElementById('cfg-personality').value;
+  config.thinking = document.getElementById('cfg-thinking').checked;
+  config.immersive = document.getElementById('cfg-immersive').checked;
+  config.foldThinking = document.getElementById('cfg-fold-thinking').checked;
+  config.memory = document.getElementById('cfg-memory').checked;
+  config.enableGreeting = document.getElementById('cfg-greeting').checked;
+  
+  saveToLocal();
+  applyConfigUI();
+  closeSettings();
+}
+
+/* ==========================================================================
+   记忆库与开场白管理 (二级菜单)
+   ========================================================================== */
+function toggleMemoryUI() {
+  const isChecked = document.getElementById('cfg-memory').checked;
+  document.getElementById('memory-manage-row').style.display = isChecked ? 'block' : 'none';
+}
+
+function toggleGreetingUI() {
+  const isChecked = document.getElementById('cfg-greeting').checked;
+  document.getElementById('greeting-manage-row').style.display = isChecked ? 'block' : 'none';
+}
+
+function openMemoryModal() { renderMemoryList(); document.getElementById('memory-modal').classList.add('active'); }
+function closeMemoryModal() { document.getElementById('memory-modal').classList.remove('active'); }
+
+function openGreetingModal() { renderGreetingList(); document.getElementById('greeting-modal').classList.add('active'); }
+function closeGreetingModal() { document.getElementById('greeting-modal').classList.remove('active'); }
+
+// 记忆库渲染
+function renderMemoryList() {
+  const list = document.getElementById('memory-list');
+  list.innerHTML = '';
+  if(memoryDB.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center;">暂无记忆</div>';
     return;
   }
-
-  const currentIds = new Set(messages.map(m => m.id));
-  Array.from(msgsEl.children).forEach(child => {
-    if(child.id && !currentIds.has(child.id)) child.remove();
-  });
-
-  let lastRole = null;
-
-  messages.forEach((m, index) => {
-    if(m.role==="system") return;
-
-    let el = document.getElementById(m.id);
-    const isNew = !el;
-    const isGroupFollow = (m.role === 'assistant' && lastRole === 'assistant');
-    const showNick = (m.role === 'assistant' && !isGroupFollow);
-    lastRole = m.role;
-
-    if(isNew) {
-      el = document.createElement("div");
-      el.id = m.id;
-      let className = "msg " + (m.role === "user" ? "user" : "ai");
-      if(isGroupFollow) className += " group-follow";
-      el.className = className;
-      
-      const content = document.createElement("div");
-      content.className = "msg-content"; 
-      
-      if(showNick) {
-          const meta = document.createElement("div");
-          meta.className = "meta";
-          const nickWrap = document.createElement("div");
-          nickWrap.className = "nick";
-          nickWrap.innerHTML = `<span>${escapeHtml(aiNickEl.value || "AI")}</span>`;
-          meta.appendChild(nickWrap);
-          el.appendChild(meta);
-      }
-
-      if(m.content==="_typing"){
-        if(showNick){
-           const dots = document.createElement("div");
-           dots.className = "typing-dots";
-           dots.innerHTML = "<span></span><span></span><span></span>";
-           el.querySelector(".meta").appendChild(dots);
-        } else {
-           content.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
-        }
-      }
-
-      el.appendChild(content);
-      msgsEl.appendChild(el);
-      
-      const container = msgsEl.parentElement;
-      container.scrollTop = container.scrollHeight;
-      setTimeout(() => el.classList.add("no-anim"), 500);
-    } 
-    else {
-      if(isGroupFollow && !el.classList.contains("group-follow")){
-        el.classList.add("group-follow");
-        const meta = el.querySelector(".meta");
-        if(meta) meta.style.display = "none";
-      } else if(!isGroupFollow && el.classList.contains("group-follow")){
-        el.classList.remove("group-follow");
-        if(!el.querySelector(".meta") && m.role === "assistant"){
-             const meta = document.createElement("div");
-             meta.className = "meta";
-             meta.innerHTML = `<div class="nick"><span>${escapeHtml(aiNickEl.value || "AI")}</span></div>`;
-             el.prepend(meta);
-        } else {
-             const meta = el.querySelector(".meta");
-             if(meta) meta.style.display = "flex";
-        }
-      }
-    }
-
-    if(m.content !== "_typing") {
-        // 【修复】清理 .meta 中的 typing-dots，防止加载动画残留
-        const metaDots = el.querySelector(".meta .typing-dots");
-        if(metaDots) metaDots.remove();
-
-        const contentDiv = el.querySelector(".msg-content") || el.lastElementChild;
-        let newHTML = "";
-        
-        if (m.role === "user") {
-          newHTML = escapeHtml(m.content);
-        } else {
-          newHTML = markdownToHtml(m.content || "");
-        }
-        
-        let reasoningHTML = "";
-        if(m.reasoning && !isImmersive){
-            const btnText = m.reasonCollapsed ? "展开思维链" : "收起思考链";
-            const displayStyle = m.reasonCollapsed ? "none" : "block";
-            const rContent = markdownToHtml(m.reasoning || "");
-            
-            // 【修复关键】：使用单行字符串拼接，避免缩进空格被 pre-wrap 渲染
-            reasoningHTML = `<div class="reasoning-toggle"><div class="reason-label">深度思考 Reasoning</div><button type="button" onclick="toggleReasoning('${m.id}')">${btnText}</button></div><div class="reasoning-box" style="display:${displayStyle}">${rContent}</div>`;
-        }
-        
-        let memoryHTML = "";
-        if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
-             let logsHtml = m.memoryInfo.logs.map(l => `<div class="memory-log-line">• ${escapeHtml(l)}</div>`).join("");
-             // 【修复关键】：使用单行字符串拼接
-             memoryHTML = `<div class="memory-notice-box"><div class="memory-notice-header"><span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn" onclick="toggleMemoryDetails(this)">展开详情</button></div><div class="memory-notice-content">${logsHtml}<button class="memory-undo-btn" onclick="undoMemory('${m.id}')">撤销</button></div></div>`;
-        } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
-             memoryHTML = `<div class="memory-notice-box"><div class="memory-restored-text">已撤销</div></div>`;
-        }
-
-        const finalHTML = newHTML + reasoningHTML + memoryHTML;
-        
-        if(contentDiv.innerHTML !== finalHTML) {
-             contentDiv.innerHTML = finalHTML;
-             if(window.renderMathInElement){
-                try{ renderMathInElement(contentDiv, { delimiters: [{left: "\\(", right: "\\)", display: false},{left: "\\[", right: "\\]", display: true}], throwOnError: false }); }catch(e){}
-             }
-             enhanceCodeBlocks(contentDiv);
-        }
-    }
-  });
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-}
-
-// 辅助函数：暴露给 HTML onclick 使用
-window.toggleReasoning = (id) => {
-    const m = messages.find(msg => msg.id === id);
-    if(m) {
-        m.reasonCollapsed = !m.reasonCollapsed;
-        renderMessages();
-    }
-};
-
-window.toggleMemoryDetails = (btn) => {
-    const details = btn.parentElement.nextElementSibling;
-    const isHidden = details.style.display === "none" || getComputedStyle(details).display === "none";
-    details.style.display = isHidden ? "block" : "none";
-    btn.textContent = isHidden ? "收起详情" : "展开详情";
-};
-
-window.undoMemory = (id) => {
-    const m = messages.find(msg => msg.id === id);
-    if(m && m.memoryInfo && m.memoryInfo.backup){
-        memories = [...m.memoryInfo.backup];
-        saveMemoriesToStorage();
-        m.memoryInfo.reverted = true;
-        renderMessages();
-        alert("记忆已回滚");
-    }
-};
-
-function enhanceCodeBlocks(container){
-  // 如果未指定 container，默认全部
-  const root = container || msgsEl;
-  root.querySelectorAll("pre").forEach(pre => {
-    if(pre.dataset.enhanced === "1") return;
-    pre.dataset.enhanced = "1";
-    const codeEl = pre.querySelector("code");
-    if(!codeEl) return;
-    let langLabel = "";
-    const classList = Array.from(codeEl.classList || []);
-    const langCls = classList.find(c => /^language-/.test(c) || /^hljs-/.test(c));
-    if(langCls) langLabel = langCls.replace(/^language-/, "").replace(/^hljs-/, "");
-    else try { const detected = hljs.highlightAuto(codeEl.textContent || ""); if(detected?.language) langLabel = detected.language; } catch(e){}
-
-    const controls = document.createElement("div");
-    controls.className = "code-controls";
-    if(langLabel){
-      const lb = document.createElement("div");
-      lb.className = "lang-badge";
-      lb.textContent = langLabel;
-      controls.appendChild(lb);
-    }
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "copy-btn";
-    copyBtn.textContent = "Copy";
-    copyBtn.onclick = async () => {
-      try{ await navigator.clipboard.writeText(codeEl.textContent||""); copyBtn.textContent="已复制"; setTimeout(()=>copyBtn.textContent="Copy",1200); }
-      catch(e){ alert("复制失败"); }
-    };
-    controls.appendChild(copyBtn);
-    pre.appendChild(controls);
-    try{ hljs.highlightElement(codeEl); }catch(e){}
+  memoryDB.forEach((mem, idx) => {
+    const item = document.createElement('div');
+    item.className = 'memory-item';
+    item.innerHTML = `
+      <div style="color:var(--muted); font-size:12px; width:16px;">${idx+1}.</div>
+      <div class="memory-text" contenteditable="true" onblur="updateMemoryInline(${idx}, this.innerText)">${escapeHTML(mem)}</div>
+      <div class="memory-actions">
+        <button class="memory-btn" onclick="deleteMemory(${idx})" title="删除">✖</button>
+      </div>
+    `;
+    list.appendChild(item);
   });
 }
 
-function addMessage(role, content, extra = {}) {
-  const msg = Object.assign({role, content}, extra);
-  if(!msg.id) msg.id = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-  if(msg.role === "assistant" && typeof msg.reasonCollapsed === "undefined"){
-    msg.reasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
+function manualAddMemory() {
+  const input = document.getElementById('new-memory-input');
+  if(input.value.trim()) { memoryDB.push(input.value.trim()); input.value = ''; renderMemoryList(); saveToLocal(); }
+}
+function deleteMemory(idx) { memoryDB.splice(idx, 1); renderMemoryList(); saveToLocal(); }
+function updateMemoryInline(idx, newText) { if(!newText.trim()) { deleteMemory(idx); return; } memoryDB[idx] = newText.trim(); saveToLocal(); }
+
+// 开场白渲染
+function renderGreetingList() {
+  const list = document.getElementById('greeting-list');
+  list.innerHTML = '';
+  if(greetingsDB.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center;">暂无开场白</div>';
+    return;
   }
-  messages.push(msg);
-  renderMessages();
+  greetingsDB.forEach((greet, idx) => {
+    const item = document.createElement('div');
+    item.className = 'memory-item';
+    item.innerHTML = `
+      <div style="color:var(--muted); font-size:12px; width:16px;">${idx+1}.</div>
+      <div class="memory-text" contenteditable="true" onblur="updateGreetingInline(${idx}, this.innerText)">${escapeHTML(greet)}</div>
+      <div class="memory-actions">
+        <button class="memory-btn" onclick="deleteGreeting(${idx})" title="删除">✖</button>
+      </div>
+    `;
+    list.appendChild(item);
+  });
 }
 
-function getBeijingTime(){
+function manualAddGreeting() {
+  const input = document.getElementById('new-greeting-input');
+  if(input.value.trim()) { greetingsDB.push(input.value.trim()); input.value = ''; renderGreetingList(); saveToLocal(); }
+}
+function deleteGreeting(idx) { greetingsDB.splice(idx, 1); renderGreetingList(); saveToLocal(); }
+function updateGreetingInline(idx, newText) { if(!newText.trim()) { deleteGreeting(idx); return; } greetingsDB[idx] = newText.trim(); saveToLocal(); }
+
+// AI 自动管理记忆解析
+function handleAIMemoryAction(actionStr) {
+  let matched = false; let notices = []; let undoActions =[];
+  const addRegex = /^[\[【]\s*ADD_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[\]】]/i;
+  let addMatch = actionStr.match(addRegex);
+  if(addMatch) {
+    const content = addMatch[1].trim();
+    memoryDB.push(content);
+    saveToLocal();
+    notices.push(content);
+    undoActions.push({ type: 'ADD', index: memoryDB.length - 1 });
+    matched = true;
+  }
+  const changeRegex = /^[\[【]\s*CHANGE_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[,，]\s*NUMBER\s*[:：]\s*(\d+)\s*[\]】]/i;
+  let changeMatch = actionStr.match(changeRegex);
+  if(changeMatch) {
+    const content = changeMatch[1].trim();
+    const idx = parseInt(changeMatch[2]) - 1;
+    if(idx >= 0 && idx < memoryDB.length) {
+      let prevContent = memoryDB[idx];
+      memoryDB[idx] = content;
+      saveToLocal();
+      notices.push(`更新了关于 #${idx+1} 的记录`);
+      undoActions.push({ type: 'CHANGE', index: idx, prevContent: prevContent });
+    }
+    matched = true;
+  }
+  return { matched, notices, undoActions };
+}
+
+/* ==========================================================================
+   UI 渲染与对话处理
+   ========================================================================== */
+function escapeHTML(str) {
+  return str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag]));
+}
+
+function scrollToBottom() {
+  setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
+}
+
+function showLoading() {
+  if (loadingIndicator) return;
+  loadingIndicator = document.createElement('div');
+  loadingIndicator.className = 'typing-indicator';
+  loadingIndicator.innerHTML = '<span></span><span></span><span></span>';
+  chatContainer.appendChild(loadingIndicator);
+  scrollToBottom();
+}
+
+function removeLoading() {
+  if (loadingIndicator && loadingIndicator.parentNode) {
+    loadingIndicator.parentNode.removeChild(loadingIndicator);
+  }
+  loadingIndicator = null;
+}
+
+function clearChat() {
+  showAlert("确认操作", "确定清空对话历史吗？记忆库将被保留。", () => {
+    chatHistory =[];
+    saveToLocal();
+    renderHistory();
+    showGreetingIfNeeded();
+  }, true);
+}
+
+function showGreetingIfNeeded() {
+  if (config.enableGreeting && greetingsDB.length > 0) {
+    const r = Math.floor(Math.random() * greetingsDB.length);
+    const text = greetingsDB[r];
+    const bubble = createAIBubble(true, null, false);
+    updateBubbleContent(bubble, text);
+  }
+}
+
+function renderHistory() {
+  chatContainer.innerHTML = '';
+  chatHistory.forEach(msg => {
+    if(msg.role === 'user') {
+      appendUserBubble(msg.content, true);
+    } else if(msg.role === 'assistant') {
+      let parts = msg.content.split(/[\[【]\s*停顿\s*[:：]\s*(\d+(?:\.\d+)?)\s*[\]】]/);
+      let isFirst = true;
+      for(let i=0; i<parts.length; i+=2) {
+          let p = parts[i].trim();
+          if(!p) continue;
+          let bubble = createAIBubble(isFirst, isFirst ? msg.reasoning_content : null, !isFirst);
+          updateBubbleContent(bubble, p);
+          isFirst = false;
+      }
+    }
+  });
+  scrollToBottom();
+}
+
+function appendUserBubble(text, noAnim = false) {
+  const div = document.createElement('div');
+  div.className = `msg user ${noAnim ? 'no-anim' : ''}`;
+  div.innerText = text;
+  chatContainer.appendChild(div);
+  scrollToBottom();
+}
+
+function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = false) {
+  const div = document.createElement('div');
+  div.className = `msg ai ${isFollowUp ? 'group-follow' : ''}`;
+  
+  let html = `<div class="msg-content">`;
+  
+  if (showMeta) {
+    html += `
+      <div class="meta">
+        <span class="nick">${escapeHTML(config.nickname)}</span>
+      </div>
+    `;
+  }
+
+  if (!config.immersive && initialReasoning) {
+    const foldState = config.foldThinking ? 'none' : 'block';
+    const btnText = config.foldThinking ? '展开' : '收起';
+    html += `
+      <div class="reasoning-box">
+        <div class="reasoning-toggle" onclick="toggleReasoning(this)">
+          <span class="reason-label">Thinking</span>
+          <button>${btnText}</button>
+        </div>
+        <div class="reasoning-content" style="display: ${foldState};">${escapeHTML(initialReasoning)}</div>
+      </div>
+    `;
+  } else if (!config.immersive) {
+    html += `
+      <div class="reasoning-box" style="display: none;">
+        <div class="reasoning-toggle" onclick="toggleReasoning(this)">
+          <span class="reason-label">深度思考</span>
+          <button>收起</button>
+        </div>
+        <div class="reasoning-content"></div>
+      </div>
+    `;
+  }
+
+  html += `<div class="text-content"></div></div>`;
+  
+  div.innerHTML = html;
+  chatContainer.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function toggleReasoning(el) {
+  const content = el.nextElementSibling;
+  const btn = el.querySelector('button');
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    btn.innerText = '收起';
+  } else {
+    content.style.display = 'none';
+    btn.innerText = '展开';
+  }
+}
+
+function updateBubbleContent(bubbleDiv, markdownText) {
+  const contentDiv = bubbleDiv.querySelector('.text-content');
+  if (!contentDiv) return;
+  const parsed = DOMPurify.sanitize(marked.parse(markdownText));
+  contentDiv.innerHTML = parsed.replace(/<pre><code class="language-(.*?)">/g, (match, lang) => {
+      return `<pre><div class="code-controls"><span class="lang-badge">${lang}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><code class="language-${lang}">`;
+  });
+}
+
+function updateBubbleReasoning(bubbleDiv, text) {
+  if (config.immersive) return; 
+  const rBox = bubbleDiv.querySelector('.reasoning-box');
+  const rContent = bubbleDiv.querySelector('.reasoning-content');
+  if (rBox && rContent) {
+    rBox.style.display = 'block';
+    rContent.innerText = text;
+  }
+}
+
+function appendMemoryNotice(bubbleDiv, noticesData) {
+  if (config.immersive || noticesData.length === 0) return;
+  const contentDiv = bubbleDiv.querySelector('.msg-content');
+  const noticeDiv = document.createElement('div');
+  noticeDiv.className = 'memory-notice-box';
+  
+  const undoDataStr = escapeHTML(JSON.stringify(noticesData.map(n => n.undo)));
+  
+  let html = `
+    <div class="memory-notice-header" onclick="toggleMemoryNotice(this)">
+      <span>✨ 我记住了关于你的事情</span>
+      <span class="arrow" style="font-size:10px;">▼</span>
+    </div>
+    <div class="memory-notice-details" style="display:none;">
+      <ul style="margin:0; padding-left:16px; color:#ccc; font-size:12px;">
+  `;
+  noticesData.forEach(n => {
+    html += `<li style="margin-bottom:4px;">${escapeHTML(n.text)}</li>`;
+  });
+  html += `
+      </ul>
+      <button class="undo-memory-btn" data-undo='${undoDataStr}' onclick="undoMemoryAction(this, event)" style="margin-top:8px; background:rgba(255,255,255,0.1); border:none; color:#e6eef6; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;">撤销</button>
+    </div>
+  `;
+  noticeDiv.innerHTML = html;
+  contentDiv.appendChild(noticeDiv);
+  scrollToBottom();
+}
+
+function toggleMemoryNotice(headerEl) {
+  const details = headerEl.nextElementSibling;
+  const arrow = headerEl.querySelector('.arrow');
+  if (details.style.display === 'none') {
+    details.style.display = 'block';
+    arrow.innerText = '▲';
+  } else {
+    details.style.display = 'none';
+    arrow.innerText = '▼';
+  }
+}
+
+window.undoMemoryAction = function(btnEl, event) {
+  event.stopPropagation();
+  let undoData = JSON.parse(btnEl.getAttribute('data-undo') || "[]");
+  for (let i = undoData.length - 1; i >= 0; i--) {
+    let act = undoData[i];
+    if (act.type === 'ADD') {
+      if (act.index < memoryDB.length) memoryDB.splice(act.index, 1);
+    } else if (act.type === 'CHANGE') {
+      if (act.index < memoryDB.length) memoryDB[act.index] = act.prevContent;
+    }
+  }
+  saveToLocal();
+  btnEl.innerText = "已成功撤销";
+  btnEl.disabled = true;
+  btnEl.style.opacity = "0.5";
+};
+
+function copyCode(btn) {
+  const pre = btn.closest('pre');
+  const code = pre.querySelector('code').innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    const old = btn.innerText;
+    btn.innerText = 'Copied!';
+    setTimeout(() => btn.innerText = old, 2000);
+  });
+}
+
+function setTypingUI(isTyping) {
+  if (isTyping) {
+    uiNickname.innerText = '对方正在输入...';
+    uiBio.classList.add('hidden');
+  } else {
+    uiNickname.innerText = config.nickname;
+    uiBio.classList.remove('hidden');
+  }
+}
+
+/* ==========================================================================
+   Prompt 组装
+   ========================================================================== */
+function getSystemPrompt() {
   const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  return new Date(utc + 8*3600*1000).toLocaleString("zh-CN", {hour12:false});
-}
+  const days =['日','一','二','三','四','五','六'];
+  const timeStr = `现在是${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')} 星期${days[now.getDay()]}`;
 
-function loadSettings(){
-  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  if(s.aiNick) aiNickEl.value = s.aiNick;
-  if(s.signature) signatureInputEl.value = s.signature;
-  if(s.userPrompt) userPromptEl.value = s.userPrompt;
-  if(s.apiKey) apiKeyEl.value = s.apiKey;
-  if(typeof s.reasoningEnabled !== "undefined") reasoningToggleEl.checked = !!s.reasoningEnabled;
-  if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
-  if(typeof s.memoryEnabled !== "undefined") memoryToggleEl.checked = !!s.memoryEnabled;
-  if(typeof s.immersiveMode !== "undefined") immersiveToggleEl.checked = !!s.immersiveMode;
-  headerTitleUpdate();
-}
+  let prompt = timeStr + "\n\n" + config.personality + "\n\n";
 
-function saveSettings(){
-  const settings = {
-    aiNick: aiNickEl.value,
-    signature: signatureInputEl.value,
-    userPrompt: userPromptEl.value,
-    apiKey: apiKeyEl.value,
-    reasoningEnabled: reasoningToggleEl.checked,
-    defaultReasonCollapsed: defaultReasonCollapsedToggleEl.checked,
-    memoryEnabled: memoryToggleEl.checked,
-    immersiveMode: immersiveToggleEl.checked
-  };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  headerTitleUpdate();
-}
+  if (config.immersive) {
+    prompt += `当你回复信息时，你可以把一段话分成多段发送。
+请在需要分段的地方插入：[停顿:2(单位秒)]
+最大时间10秒
+格式：[停顿:2]
 
-function getApiKey(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiKey || ""; }
-function isReasoningEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").reasoningEnabled; }
-function isDefaultReasonCollapsed(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").defaultReasonCollapsed; }
-function isMemoryEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").memoryEnabled; }
-function isImmersiveMode(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").immersiveMode; }
+示例：[记忆标签]
+第一段话内容...
+[停顿:2]
+第二段话内容...
 
-function headerTitleUpdate(){
-  aiTitleTextEl.textContent = aiNickEl.value || "AI 聊天";
-  signatureEl.textContent = signatureInputEl.value || "";
-}
-
-/* ============ 记忆管理功能 ============ */
-function renderMemoryList(){
-  memoryListContainer.innerHTML = "";
-  if(memories.length === 0){
-    const empty = document.createElement("div");
-    empty.style.color = "#8b949e"; empty.style.textAlign = "center"; empty.style.padding = "10px"; empty.style.fontSize = "13px";
-    empty.textContent = "暂无记忆";
-    memoryListContainer.appendChild(empty);
-    return;
-  }
-  memories.forEach((mem, index) => {
-    const item = document.createElement("div");
-    item.className = "memory-item";
-    const idx = document.createElement("span");
-    idx.className = "memory-index";
-    idx.textContent = (index + 1) + ".";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = mem;
-    input.style.flex="1"; input.style.background="transparent"; input.style.border="none"; input.style.color="#ddd"; input.style.fontSize="13px"; input.style.outline="none";
-    input.addEventListener("change", (e)=>{ memories[index] = e.target.value; });
-    const delBtn = document.createElement("button");
-    delBtn.className = "memory-btn";
-    delBtn.innerHTML = "×";
-    delBtn.onclick = () => { memories.splice(index, 1); renderMemoryList(); };
-    item.appendChild(idx); item.appendChild(input); item.appendChild(delBtn);
-    memoryListContainer.appendChild(item);
-  });
-}
-function saveMemoriesToStorage(){ localStorage.setItem(MEMORY_KEY, JSON.stringify(memories)); }
-
-openMemoryManagerBtn.addEventListener("click", () => {
-  renderMemoryList();
-  settingsModal.style.display = "none";
-  memoryModal.style.display = "flex";
-});
-closeMemoryModalBtn.addEventListener("click", () => {
-  memoryModal.style.display = "none";
-  settingsModal.style.display = "flex";
-});
-saveMemoryModalBtn.addEventListener("click", () => {
-  saveMemoriesToStorage();
-  memoryModal.style.display = "none";
-});
-
-manualMemoryInput.addEventListener("keydown", (e) => {
-  if(e.key === "Enter" && manualMemoryInput.value.trim()){
-    memories.push(manualMemoryInput.value.trim());
-    saveMemoriesToStorage(); 
-    manualMemoryInput.value = "";
-    renderMemoryList();
-  }
-});
-
-/* ============ 记忆解析器（改进版）=========== */
-function executeMemoryTags(text) {
-  // 支持的引号集合：英文双引号 "，中文引号 “ ”，以及单引号 ‘ ’（如果未来需要）
-  const QUOTE = `['"“”‘’]`;
-
-  const updateRegex = new RegExp(
-    `\\[UPDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\]`,
-    'g'
-  );
-
-  // 优化一：修改正则，兼容 AI 不带引号的数字输出
-  const setDateRegex = new RegExp(
-    `\\[SETDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\s*[,\\uff0c]\\s*number\\s*:\\s*(?:${QUOTE})?(\\d+)(?:${QUOTE})?\\]`,
-    'g'
-  );
-  
-  let newText = text;
-  let logs = [];
-  let hasUpdate = false;
-  
-  const backup = [...memories];
-
-  let match;
-  // 处理 UPDATE_MEMORY
-  while ((match = updateRegex.exec(text)) !== null) {
-      const content = match[2];
-      memories.push(content);
-      logs.push(`新增: ${content}`);
-      hasUpdate = true;
+请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间
+当没有必要分条或你的消息太短时，不要分条
+停顿时间视信息长短而定，每条一般3秒-7秒\n\n`;
   }
 
-  // 处理 SETDATE_MEMORY
-  while ((match = setDateRegex.exec(text)) !== null) {
-      const content = match[2];
-      const num = parseInt(match[3], 10);
-      if (!isNaN(num) && num > 0 && num <= memories.length) {
-          const old = memories[num - 1];
-          memories[num - 1] = content;
-          logs.push(`修改 #${num}: ${old} -> ${content}`);
-          hasUpdate = true;
-      }
-  }
-  
-  // 清除标签（把所有匹配到的标签从文本中移除）
-  newText = newText.replace(updateRegex, "");
-  newText = newText.replace(setDateRegex, "");
-  
-  if (hasUpdate) {
-      saveMemoriesToStorage();
-  }
-  
-  return {
-      cleanedText: newText,
-      logs: logs,
-      backup: backup,
-      hasUpdate: hasUpdate
-  };
-}
-
-/* ============ 沉浸模式分条消息处理 ============ */
-async function processImmersiveResponse(fullText) {
-    const { cleanedText } = executeMemoryTags(fullText);
-    
-    // 优化三：修改分隔正则，使其匹配更宽容（兼容中英方括号，更多空格可能性）
-    // 捕获组1是数字。Split 会保留捕获组。
-    const splitRegex = /[\[【]\s*停顿[:：\s]*(\d+)[^\]】]*[\]】]/gi;
-    
-    const segments = cleanedText.split(splitRegex);
-    // 数组结构会是：[Text, DelayStr, Text, DelayStr, Text...]
-    
-    for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        
-        // 奇数索引是捕获的数字（split机制），偶数索引是文本
-        if (i % 2 === 1) {
-            let delay = parseInt(segment, 10);
-            if (isNaN(delay)) delay = 0;
-            if (delay > 7) delay = 7; // 限制最大7秒
-            
-            if (delay > 0) {
-                await new Promise(resolve => setTimeout(resolve, delay * 1000));
-            }
-        } else {
-            // 文本内容
-            if (segment.trim()) {
-                addMessage("assistant", segment.trim());
-            }
-        }
-    }
-}
-
-// 锁定/解锁界面
-function setInputLock(locked) {
-    inputEl.disabled = locked;
-    sendBtn.disabled = locked;
-    // 修改：去除 inputEl.focus()，防止键盘自动弹出
-}
-
-async function sendMessage(){
-  const text = inputEl.value.trim();
-  if(!text) return;
-  
-  // 锁定界面
-  setInputLock(true);
-  
-  inputEl.value = "";
-  inputEl.style.height = "44px"; 
-  addMessage("user", text);
-
-  const isImmersive = isImmersiveMode();
-  let originalTitle = aiTitleTextEl.textContent;
-  let originalSig = signatureEl.textContent;
-  let immersiveTimer = null;
-
-  if (isImmersive) {
-      immersiveTimer = setTimeout(() => {
-          aiTitleTextEl.textContent = "对方正在输入...";
-          signatureEl.style.display = "none"; 
-      }, 1000);
-  }
-
-  // 构建 Prompt
-  let sysPrompt = `现在是 ${getBeijingTime()}（北京时间二十四小时制），用户提示：${userPromptEl.value||""}`;
-  
-  if(isMemoryEnabled()){
-     // 优化二：带序号的列表排版格式，替代原本的 JSON
-     let memText = "暂无记忆";
-     if (memories && memories.length > 0) {
-         memText = memories.map((mem, index) => `${index + 1}. ${mem}`).join("\n");
-     }
-     
-     sysPrompt += `
-\n你拥有长期记忆功能。
+  if (config.memory) {
+    let memText = memoryDB.map((m, i) => `${i + 1}. ${m}`).join('\n');
+    prompt += `你拥有长期记忆功能。
 当前记忆库：
 <memory>
 ${memText}
@@ -993,263 +940,397 @@ ${memText}
 ​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性，不要突兀提出记忆，不合适时禁止使用
 
 你拥有添加记忆的能力：
-​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
-
-[UPDATE_MEMORY:"内容"]
-#该工具为增加记忆，禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎
-
-[SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
+​##十分重要：如果你需要记住什么，请在回复的开头增加一个特殊格式：[ADD_MEMORY:"内容"]
+#该工具为增加记忆
+**禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎**[CHANGE_MEMORY:"内容",NUMBER:"需要修改的记忆的序号"]
 #该工具为更改记忆
 
-##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
-
+##必须严格按照以上格式进行回复，一旦使用，一定要将标签置于对话最前
 可以从平常和用户的聊天中提取有用长期信息记忆
-
-​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
-`;
+​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。\n\n`;
   }
 
-  // 沉浸模式：注入分条回复指令
-  if (isImmersive) {
-      sysPrompt += `
-当你回复信息时，你可以把一段话分成多段发送。
-请在需要分段的地方插入：[停顿:2(单位秒)]
-最大时间7秒
-格式：
-[停顿:2]
+  return prompt;
+}
 
-示例：
-[记忆标签]
-第一段话内容...
-[停顿:2]
-第二段话内容...
-
-请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间
-
-当没有必要分条或你的消息太短时，不要分条
-
-停顿时间视信息长短而定，每条一般3秒-5秒
-`;
+/* ==========================================================================
+   Stream Handlers
+   ========================================================================== */
+class NormalStreamHandler {
+  constructor() {
+    this.rawText = "";
+    this.reasoningText = "";
+    this.cursor = 0;
+    this.isFinished = false;
+    
+    this.currentBubble = null;
+    this.currentText = "";
+    this.currentMemoryNotices =[];
+    
+    this.timer = setInterval(() => this.processLoop(), 30);
   }
 
-  const apiMessages = [{role:"system", content: sysPrompt}];
-  for(const m of messages){
-    if(m.role==="assistant" && m.content==="_typing") continue;
-    if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
-  }
-
-  // 新增逻辑：在每三轮对话后，将提示词附加到最后一条用户消息的内容之后
-  if (isImmersive) {
-      const userMsgCount = messages.filter(m => m.role === "user").length;
-      if (userMsgCount > 2 && userMsgCount % 2 === 0) {
-          // 获取当前构造的 API 消息列表中的最后一条消息
-          const lastMsg = apiMessages[apiMessages.length - 1];
-          // 确保这条是用户发的消息（理论上必然是，因为刚刚 addMessage）
-          if (lastMsg && lastMsg.role === "user") {
-               lastMsg.content += `\n\n系统提示：请严格 [停顿:数字] 来分段回复，不要让用户知道这个提示。`;
-          }
+  append(content, isReasoning = false) {
+    if (isReasoning) {
+      this.reasoningText += content;
+      if (!this.currentBubble) {
+        removeLoading();
+        this.currentBubble = createAIBubble(true, this.reasoningText);
+      } else {
+        updateBubbleReasoning(this.currentBubble, this.reasoningText);
       }
+    } else {
+      this.rawText += content;
+    }
   }
 
-  // 非沉浸模式下：添加占位符消息
-  let placeholderId = null;
-  let replyMessageIndex = -1;
-  const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
-
-  if (!isImmersive) {
-      placeholderId = `m_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-      addMessage("assistant","_typing",{id:placeholderId, reasoning: null, reasonCollapsed: placeholderReasonCollapsed});
-      replyMessageIndex = messages.findIndex(mm => mm.id === placeholderId);
-      if(replyMessageIndex === -1) replyMessageIndex = messages.length - 1;
+  finish() {
+    this.isFinished = true;
   }
 
-  try {
-    const apiKey = getApiKey();
-    if(!apiKey) throw new Error("请在设置中填写 API Key");
+  processLoop() {
+    if (this.cursor < this.rawText.length) {
+      let remaining = this.rawText.slice(this.cursor);
+      
+      let addMatch = remaining.match(/^[\[【]\s*ADD_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[\]】]/i);
+      if (addMatch) {
+        let res = handleAIMemoryAction(addMatch[0]);
+        if (res.matched) {
+          for(let i=0; i<res.notices.length; i++){
+            this.currentMemoryNotices.push({ text: res.notices[i], undo: res.undoActions[i] });
+          }
+        }
+        this.cursor += addMatch[0].length;
+        return;
+      }
+      
+      let changeMatch = remaining.match(/^[\[【]\s*CHANGE_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[,，]\s*NUMBER\s*[:：]\s*(\d+)\s*[\]】]/i);
+      if (changeMatch) {
+        let res = handleAIMemoryAction(changeMatch[0]);
+        if (res.matched) {
+          for(let i=0; i<res.notices.length; i++){
+            this.currentMemoryNotices.push({ text: res.notices[i], undo: res.undoActions[i] });
+          }
+        }
+        this.cursor += changeMatch[0].length;
+        return;
+      }
 
-    const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
-    const res = await fetch(API_BASE + "/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+apiKey },
-      body: JSON.stringify({ model: modelToUse, messages: apiMessages, stream: true })
+      let possibleTagMatch = remaining.match(/^[\[【][^\]】]*$/);
+      if (possibleTagMatch && !this.isFinished) {
+        return;
+      }
+
+      let nextBracket = remaining.indexOf('[');
+      let nextBracket2 = remaining.indexOf('【');
+      if (nextBracket === 0 || nextBracket2 === 0) {
+        if(this.isFinished) {
+          this.currentText += remaining[0];
+          this.cursor += 1;
+          this.updateBubble();
+        }
+        return;
+      }
+
+      let nextIdx = Math.min(
+        nextBracket === -1 ? Infinity : nextBracket,
+        nextBracket2 === -1 ? Infinity : nextBracket2
+      );
+
+      let textToAppend = nextIdx === Infinity ? remaining : remaining.slice(0, nextIdx);
+      let chunkStr = textToAppend.slice(0, 100);
+      this.currentText += chunkStr;
+      this.cursor += chunkStr.length;
+
+      this.updateBubble();
+    } else if (this.isFinished) {
+      clearInterval(this.timer);
+      removeLoading(); // 确保如果未接收到任何文本数据也可清理加载动画
+      if (this.currentBubble) {
+          updateBubbleContent(this.currentBubble, this.currentText);
+          appendMemoryNotice(this.currentBubble, this.currentMemoryNotices);
+      }
+      finalizeMessage(this.rawText, this.reasoningText);
+    }
+  }
+
+  updateBubble() {
+    if (!this.currentBubble) {
+      removeLoading();
+      this.currentBubble = createAIBubble(true, this.reasoningText || null);
+    }
+    updateBubbleContent(this.currentBubble, this.currentText);
+    scrollToBottom();
+  }
+}
+
+class ImmersiveStreamHandler {
+  constructor() {
+    this.rawText = "";
+    this.reasoningText = ""; 
+  }
+
+  append(content, isReasoning = false) {
+    if (isReasoning) {
+      this.reasoningText += content;
+    } else {
+      this.rawText += content;
+    }
+  }
+
+  async finish() {
+    let text = this.rawText;
+    let noticesData =[];
+
+    text = text.replace(/[\[【]\s*ADD_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[\]】]/gi, (match) => {
+        let res = handleAIMemoryAction(match);
+        if (res.matched) {
+          for(let i=0; i<res.notices.length; i++) noticesData.push({ text: res.notices[i], undo: res.undoActions[i] });
+        }
+        return "";
+    });
+    text = text.replace(/[\[【]\s*CHANGE_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[,，]\s*NUMBER\s*[:：]\s*(\d+)\s*[\]】]/gi, (match) => {
+        let res = handleAIMemoryAction(match);
+        if (res.matched) {
+          for(let i=0; i<res.notices.length; i++) noticesData.push({ text: res.notices[i], undo: res.undoActions[i] });
+        }
+        return "";
     });
 
-    if(!res.ok) throw new Error(`API Error ${res.status}`);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8");
+    let parts = text.split(/[\[【]\s*停顿\s*[:：]\s*(\d+(?:\.\d+)?)\s*[\]】]/);
     
-    // 准备回复对象
-    let reply = {
-        role: "assistant", 
-        content: "", 
-        reasoning: null, 
-        reasonCollapsed: placeholderReasonCollapsed, 
-        id: placeholderId,
-        memoryInfo: { logs: [], backup: null, reverted: false } 
-    };
-    if(!isImmersive && messages[replyMessageIndex]) {
-        // 确保使用占位符的ID
-        reply.id = messages[replyMessageIndex].id;
-    }
-
-    let buffer = ""; 
-    let checkTags = isMemoryEnabled() && !isImmersive; 
-    let streamBuffer = ""; 
-    let fullImmersiveBuffer = ""; 
-
-    while(true){
-      const {done, value} = await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value, {stream:true});
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop();
-
-      for(const part of parts){
-        if(!part.startsWith("data:")) continue;
-        const data = part.slice(5).trim();
-        if(!data || data==="[DONE]") continue;
-        try{
-          const obj = JSON.parse(data);
-          const delta = obj.choices?.[0]?.delta || {};
-          
-          if(delta.reasoning_content){
-             if(!isImmersive) {
-                 reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
-                 messages[replyMessageIndex] = reply;
-                 renderMessages();
-             }
-          }
-
-          if(delta.content){
-            const newContent = delta.content;
-
-            if (isImmersive) {
-                fullImmersiveBuffer += newContent;
-            } else {
-                if(checkTags){
-                    streamBuffer += newContent;
-                    if(!streamBuffer.trimStart().startsWith("[")){
-                        reply.content += streamBuffer;
-                        streamBuffer = "";
-                        checkTags = false; 
-                    } else {
-                        while(true) {
-                            const startIndex = streamBuffer.indexOf("[");
-                            const endIndex = streamBuffer.indexOf("]");
-                            
-                            if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
-                                const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
-                                const result = executeMemoryTags(tagStr);
-                                
-                                if(result.hasUpdate){
-                                    if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
-                                    reply.memoryInfo.logs.push(...result.logs);
-                                } else {
-                                    reply.content += tagStr; 
-                                }
-                                streamBuffer = streamBuffer.substring(endIndex + 1);
-                            } else {
-                                break;
-                            }
-                        }
-                        if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
-                            reply.content += streamBuffer;
-                            streamBuffer = "";
-                            checkTags = false;
-                        }
-                    }
-                } else {
-                    reply.content += newContent;
-                }
-                messages[replyMessageIndex] = reply;
-                renderMessages();
-            }
-          }
-        }catch(e){}
+    setTypingUI(false); 
+    
+    let isFirst = true;
+    for (let i = 0; i < parts.length; i += 2) {
+      let content = parts[i].trim();
+      if (content) {
+        let bubble = createAIBubble(isFirst, null, !isFirst);
+        updateBubbleContent(bubble, content);
+        if (isFirst && noticesData.length > 0) {
+          appendMemoryNotice(bubble, noticesData);
+        }
+        isFirst = false;
       }
-    }
-    
-    if(isImmersive) {
-        await processImmersiveResponse(fullImmersiveBuffer);
-    } else {
-        if(streamBuffer){
-            reply.content += streamBuffer;
-        }
-        // 修复：无论是否有 buffer 剩余，都强制更新一次消息内容，确保 _typing 状态被清除
-        messages[replyMessageIndex] = reply;
-        renderMessages();
-    }
-    
-  }catch(e){
-    if (isImmersive) {
-        addMessage("assistant", "\n[错误] " + e.message);
-    } else {
-        if(replyMessageIndex >= 0) {
-            messages[replyMessageIndex] = {role:"assistant", content: "\n[错误] " + e.message, id:placeholderId};
-            renderMessages();
-        }
-    }
-  } finally {
-      // 解锁
-      setInputLock(false);
       
-      if(isImmersive) {
-          if(immersiveTimer) clearTimeout(immersiveTimer);
-          aiTitleTextEl.textContent = originalTitle; 
-          signatureEl.textContent = originalSig;
-          signatureEl.style.display = ""; 
+      if (i + 1 < parts.length) {
+        let pauseTime = parseFloat(parts[i + 1]);
+        if (pauseTime > 0) {
+            setTypingUI(true);
+            await new Promise(r => setTimeout(r, Math.min(pauseTime * 1000, 10000)));
+            setTypingUI(false);
+        }
       }
+    }
+
+    finalizeMessage(this.rawText, this.reasoningText);
   }
 }
 
-/* ---------- UI Events ---------- */
-openSettingsBtn.addEventListener("click", ()=>{ loadSettings(); settingsModal.style.display="flex"; });
-closeSettingsBtn.addEventListener("click", ()=>{ settingsModal.style.display="none"; });
-saveSettingsBtn.addEventListener("click", ()=>{ saveSettings(); settingsModal.style.display="none"; renderMessages(); });
+/* ==========================================================================
+   API 调用控制
+   ========================================================================== */
+async function sendMessage() {
+  const currentApiKey = config.engine === 'deepseek' ? config.apiKey_deepseek : config.apiKey_gemini;
+  if (!currentApiKey) {
+    showAlert("提示", "请先在设置中配置当前模型的 API Key", () => { openSettings(); }, false);
+    return;
+  }
 
-clearHistoryBtn.addEventListener("click", ()=>{ confirmModal.style.display = "flex"; });
-confirmClearBtn.addEventListener("click", ()=>{ messages = []; localStorage.removeItem(STORAGE_KEY); renderMessages(); confirmModal.style.display = "none"; });
-cancelClearBtn.addEventListener("click", ()=>{ confirmModal.style.display = "none"; });
+  const text = inputArea.value.trim();
+  if (!text) return;
 
-sendBtn.addEventListener("click", sendMessage);
-inputEl.addEventListener("keydown", (e)=>{
-  if((e.key === "Enter") && (e.ctrlKey || e.metaKey)){ e.preventDefault(); sendMessage(); setExpandedState(false); }
-});
-inputEl.addEventListener('input', ()=>{
-  setExpandedState(true);
-  inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight,240)+"px";
-});
+  inputArea.value = '';
+  inputArea.style.height = '44px';
+  inputArea.disabled = true;
+  sendBtn.disabled = true;
 
-const BASE_BOTTOM_HEIGHT = 76; 
-function updateForViewport(){
-  const vv = window.visualViewport;
-  let kb = 0;
-  if(vv){ kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0)); }
-  else { kb = Math.max(0, window.innerHeight - document.documentElement.clientHeight); }
-  bottomEl.style.bottom = (kb > 0 ? kb + 'px' : '0px');
-  document.documentElement.style.setProperty('--bottom-height', `${BASE_BOTTOM_HEIGHT + kb}px`);
-  setTimeout(()=>{ const container = msgsEl.parentElement; container.scrollTop = container.scrollHeight; }, 120);
+  // 【修复bug所在】必须先将用户的气泡添加到列表中
+  appendUserBubble(text);
+  chatHistory.push({ role: 'user', content: text });
+
+  if (config.immersive) {
+    setTypingUI(true);
+  } else {
+    uiNickname.innerText = config.nickname;
+    // 【修复bug所在】再显示AI正在思考的加载动画，这样圆点就会正确地出现在用户消息下方了
+    showLoading(); 
+  }
+
+  const handler = config.immersive ? new ImmersiveStreamHandler() : new NormalStreamHandler();
+
+  try {
+    if (config.engine === 'deepseek') {
+      await fetchDeepSeek(handler, currentApiKey);
+    } else {
+      await fetchGemini(handler, currentApiKey);
+    }
+  } catch (err) {
+    removeLoading();
+    handler.finish();
+    console.error(err);
+    showAlert("请求发生错误", err.message, null, false);
+    finalizeMessage("Error", "", true);
+  }
 }
-if(window.visualViewport){
-  window.visualViewport.addEventListener('resize', updateForViewport, {passive:true});
-  window.visualViewport.addEventListener('scroll', updateForViewport, {passive:true});
-}
-window.addEventListener('resize', updateForViewport);
-inputEl.addEventListener('focus', ()=>{ setExpandedState(true); setTimeout(()=>{ updateForViewport(); msgsEl.parentElement.scrollTop = msgsEl.parentElement.scrollHeight; }, 250); });
-inputEl.addEventListener('blur', ()=>{ setTimeout(()=>{ if(!inputEl.value.trim()) setExpandedState(false); updateForViewport(); }, 160); });
 
-function setExpandedState(expand){
-  if(expand){ inputEl.classList.remove("collapsed"); inputEl.classList.add("expanded"); inputEl.style.width = ""; }
-  else { if(inputEl.value && inputEl.value.trim()) return; inputEl.classList.remove("expanded"); inputEl.classList.add("collapsed"); inputEl.style.height = "44px"; inputEl.style.width = ""; }
+function finalizeMessage(rawText, reasoningText, isError = false) {
+  inputArea.disabled = false;
+  sendBtn.disabled = false;
+  setTypingUI(false); 
+
+  if (!isError) {
+    let storeText = rawText.replace(/[\[【]\s*ADD_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[\]】]/gi, "");
+    storeText = storeText.replace(/[\[【]\s*CHANGE_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[,，]\s*NUMBER\s*[:：]\s*(\d+)\s*[\]】]/gi, "");
+    
+    chatHistory.push({ 
+      role: 'assistant', 
+      content: storeText.trim(), 
+      reasoning_content: reasoningText 
+    });
+    saveToLocal();
+  }
 }
 
-window.addEventListener("load", ()=>{
-  loadSettings();
-  if(!inputEl.value || !inputEl.value.trim()) inputEl.classList.add("collapsed"); else inputEl.classList.add("expanded");
-  renderMessages();
-  updateForViewport();
-});
+/* ==========================================================================
+   DeepSeek API 接入
+   ========================================================================== */
+async function fetchDeepSeek(handler, apiKey) {
+  const messages =[{ role: 'system', content: getSystemPrompt() }];
+  
+  chatHistory.forEach(msg => {
+    messages.push({ role: msg.role, content: msg.content });
+  });
+
+  const model = (config.thinking || config.immersive) ? "deepseek-reasoner" : "deepseek-chat";
+
+  const response = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      stream: true
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(response.status + " " + err);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    
+    let lines = buffer.split('\n');
+    buffer = lines.pop(); 
+
+    for (let line of lines) {
+      if (line.startsWith('data: ')) {
+        const dataStr = line.slice(6).trim();
+        if (dataStr === '[DONE]') continue;
+        try {
+          const json = JSON.parse(dataStr);
+          const delta = json.choices[0].delta;
+          
+          if (delta.reasoning_content) {
+            handler.append(delta.reasoning_content, true);
+          }
+          if (delta.content) {
+            handler.append(delta.content, false);
+          }
+        } catch (e) {
+          console.warn("Parse error on chunk:", line);
+        }
+      }
+    }
+  }
+  handler.finish();
+}
+
+/* ==========================================================================
+   Gemini API 接入
+   ========================================================================== */
+async function fetchGemini(handler, apiKey) {
+  const model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+  let contents =[];
+  chatHistory.forEach(msg => {
+    contents.push({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts:[{ text: msg.content }]
+    });
+  });
+
+  const payload = {
+    systemInstruction: { parts:[{ text: getSystemPrompt() }] },
+    contents: contents
+  };
+
+  if (config.thinking || config.immersive) {
+    payload.generationConfig = {
+      thinkingConfig: { thinkingLevel: "HIGH" }
+    };
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(response.status + " " + err);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    
+    let lines = buffer.split('\n');
+    buffer = lines.pop(); 
+
+    for (let line of lines) {
+      if (line.startsWith('data: ')) {
+        const dataStr = line.slice(6).trim();
+        if (!dataStr) continue;
+        try {
+          const json = JSON.parse(dataStr);
+          if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts) {
+            json.candidates[0].content.parts.forEach(part => {
+              if (part.text) {
+                handler.append(part.text, false);
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("Parse error on chunk:", line);
+        }
+      }
+    }
+  }
+  handler.finish();
+}
+
+// 启动应用
+window.onload = init;
+
 </script>
 </body>
 </html>
