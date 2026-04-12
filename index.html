@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>DeepSeek Chat by 风扇</title>
+<title>Chat by 风扇</title>
 
 <!-- highlight.js for client-side syntax highlighting -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
@@ -123,10 +123,6 @@
   .modal-content input[type="text"], .modal-content input[type="search"], .modal-content input[type="password"]{
     width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;
   }
-  .modal-content select {
-    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); 
-    background: #0F1113; color: #e6eef6; outline: none; box-sizing: border-box; appearance: none;
-  }
   .modal-content textarea{width:100%;min-height:120px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:#0F1113;color:#e6eef6;outline:none;box-sizing:border-box;resize:vertical}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
@@ -240,7 +236,7 @@
   <header>
     <div class="ai-box">
       <div class="ai-title" id="headerTitle">
-        <div id="aiTitleText">和deepseek聊天！</div>
+        <div id="aiTitleText">开始聊天吧！</div>
       </div>
       <div class="signature" id="signature"></div>
     </div>
@@ -302,20 +298,6 @@
 <div class="modal" id="settingsModal">
   <div class="modal-content">
     <h2>设置</h2>
-    
-    <div class="modal-row">
-      <label for="apiProvider">API 提供商 Provider</label>
-      <select id="apiProvider">
-        <option value="deepseek">DeepSeek</option>
-        <option value="gemini">Gemini</option>
-      </select>
-    </div>
-    
-    <div class="modal-row">
-      <label for="apiKeyInput">API Key（本地保存）</label>
-      <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxxx" />
-    </div>
-
     <div class="modal-row">
       <label for="aiNick">昵称 Name</label>
       <input id="aiNick" type="text" value="小风" />
@@ -330,6 +312,20 @@
       <label for="userPrompt">性格 Character</label>
       <textarea id="userPrompt" placeholder="定义AI的性格、说话方式（在这里重复AI的名字"></textarea>
     </div>
+
+    <div class="modal-row">
+      <label for="apiKeyInput">API Key（DeepSeek 或 Gemini）</label>
+      <input id="apiKeyInput" type="password" placeholder="填写对应的服务密钥" />
+    </div>
+
+    <!-- 新增 Gemini 模式切换 -->
+    <div class="modal-row">
+        <label>AI 模型提供商</label>
+        <div class="toggle-row">
+          <input id="geminiToggle" type="checkbox" />
+          <div class="toggle-desc">开启 Gemini 模式 (默认使用 DeepSeek)</div>
+        </div>
+    </div>
     
     <div class="modal-row">
         <label>视觉体验</label>
@@ -343,7 +339,7 @@
       <label for="reasoningToggle">深度思考</label>
       <div class="toggle-row">
         <input id="reasoningToggle" type="checkbox" />
-        <div class="toggle-desc">开启后将深度思考</div>
+        <div class="toggle-desc">开启后将进行深度推理</div>
       </div>
     </div>
 
@@ -359,7 +355,7 @@
       <label>长期记忆 </label>
       <div class="toggle-row">
         <input id="memoryToggle" type="checkbox" />
-        <div class="toggle-desc">开启记忆功能（开启深度思考功能最佳）</div>
+        <div class="toggle-desc">开启记忆功能（建议配合深度思考）</div>
       </div>
       <!-- 样式修改：做成超链接形式 -->
       <button class="link-btn" id="openMemoryManager">进入记忆管理界面</button>
@@ -384,13 +380,13 @@ const MEMORY_KEY = "deepseek_chat_memory";
 const msgsEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
-const apiProviderEl = document.getElementById("apiProvider");
 const aiNickEl = document.getElementById("aiNick");
 const aiTitleTextEl = document.getElementById("aiTitleText");
 const signatureEl = document.getElementById("signature");
 const signatureInputEl = document.getElementById("signatureInput");
 const userPromptEl = document.getElementById("userPrompt");
 const apiKeyEl = document.getElementById("apiKeyInput");
+const geminiToggleEl = document.getElementById("geminiToggle");
 const reasoningToggleEl = document.getElementById("reasoningToggle");
 const defaultReasonCollapsedToggleEl = document.getElementById("defaultReasonCollapsedToggle");
 const memoryToggleEl = document.getElementById("memoryToggle");
@@ -425,7 +421,7 @@ function escapeHtml(str){
 }
 
 function extractCodeBlocksRaw(text){
-  const codeBlocks = [];
+  const codeBlocks =[];
   let out = "";
   let pos = 0;
   while(true){
@@ -455,7 +451,7 @@ function markdownToHtml(input){
   text = extracted.text;
   const codeBlocks = extracted.codeBlocks;
   const lines = text.split("\n");
-  const outParts = [];
+  const outParts =[];
   let paragraph = null;
   let inUl = false, inOl = false;
 
@@ -487,7 +483,7 @@ function markdownToHtml(input){
           return parts;
         }
         const headerCells = splitRow(line);
-        const bodyRows = [];
+        const bodyRows =[];
         let j = i + 2;
         for(; j < lines.length; j++){
           const r = lines[j]; if(r.trim() === "" || r.indexOf('|') === -1) break;
@@ -553,7 +549,7 @@ function markdownToHtml(input){
 
 function inlineFormatting(escapedText){
   if(!escapedText) return "";
-  const codePlaceholders = [];
+  const codePlaceholders =[];
   escapedText = escapedText.replace(/`([^`]+)`/g, (m, code) => {
     codePlaceholders.push(code); return `@@INLINECODE_${codePlaceholders.length-1}@@`;
   });
@@ -563,7 +559,7 @@ function inlineFormatting(escapedText){
   return escapedText;
 }
 
-/* ------------------ 渲染消息（修复版：去除缩进换行，修复布局问题） ------------------ */
+/* ------------------ 渲染消息 ------------------ */
 function renderMessages() {
   const isImmersive = isImmersiveMode();
   
@@ -647,7 +643,6 @@ function renderMessages() {
     }
 
     if(m.content !== "_typing") {
-        // 【修复】清理 .meta 中的 typing-dots，防止加载动画残留
         const metaDots = el.querySelector(".meta .typing-dots");
         if(metaDots) metaDots.remove();
 
@@ -666,14 +661,12 @@ function renderMessages() {
             const displayStyle = m.reasonCollapsed ? "none" : "block";
             const rContent = markdownToHtml(m.reasoning || "");
             
-            // 【修复关键】：使用单行字符串拼接，避免缩进空格被 pre-wrap 渲染
             reasoningHTML = `<div class="reasoning-toggle"><div class="reason-label">深度思考 Reasoning</div><button type="button" onclick="toggleReasoning('${m.id}')">${btnText}</button></div><div class="reasoning-box" style="display:${displayStyle}">${rContent}</div>`;
         }
         
         let memoryHTML = "";
         if(m.memoryInfo && m.memoryInfo.logs && m.memoryInfo.logs.length > 0 && !m.memoryInfo.reverted && !isImmersive){
              let logsHtml = m.memoryInfo.logs.map(l => `<div class="memory-log-line">• ${escapeHtml(l)}</div>`).join("");
-             // 【修复关键】：使用单行字符串拼接
              memoryHTML = `<div class="memory-notice-box"><div class="memory-notice-header"><span>✨ 我记住了关于你的事情</span><button class="memory-notice-btn" onclick="toggleMemoryDetails(this)">展开详情</button></div><div class="memory-notice-content">${logsHtml}<button class="memory-undo-btn" onclick="undoMemory('${m.id}')">撤销</button></div></div>`;
         } else if (m.memoryInfo && m.memoryInfo.reverted && !isImmersive) {
              memoryHTML = `<div class="memory-notice-box"><div class="memory-restored-text">已撤销</div></div>`;
@@ -694,7 +687,6 @@ function renderMessages() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
 }
 
-// 辅助函数：暴露给 HTML onclick 使用
 window.toggleReasoning = (id) => {
     const m = messages.find(msg => msg.id === id);
     if(m) {
@@ -722,7 +714,6 @@ window.undoMemory = (id) => {
 };
 
 function enhanceCodeBlocks(container){
-  // 如果未指定 container，默认全部
   const root = container || msgsEl;
   root.querySelectorAll("pre").forEach(pre => {
     if(pre.dataset.enhanced === "1") return;
@@ -730,7 +721,7 @@ function enhanceCodeBlocks(container){
     const codeEl = pre.querySelector("code");
     if(!codeEl) return;
     let langLabel = "";
-    const classList = Array.from(codeEl.classList || []);
+    const classList = Array.from(codeEl.classList ||[]);
     const langCls = classList.find(c => /^language-/.test(c) || /^hljs-/.test(c));
     if(langCls) langLabel = langCls.replace(/^language-/, "").replace(/^hljs-/, "");
     else try { const detected = hljs.highlightAuto(codeEl.textContent || ""); if(detected?.language) langLabel = detected.language; } catch(e){}
@@ -774,11 +765,11 @@ function getBeijingTime(){
 
 function loadSettings(){
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  if(s.apiProvider) apiProviderEl.value = s.apiProvider;
   if(s.aiNick) aiNickEl.value = s.aiNick;
   if(s.signature) signatureInputEl.value = s.signature;
   if(s.userPrompt) userPromptEl.value = s.userPrompt;
   if(s.apiKey) apiKeyEl.value = s.apiKey;
+  if(typeof s.geminiMode !== "undefined") geminiToggleEl.checked = !!s.geminiMode;
   if(typeof s.reasoningEnabled !== "undefined") reasoningToggleEl.checked = !!s.reasoningEnabled;
   if(typeof s.defaultReasonCollapsed !== "undefined") defaultReasonCollapsedToggleEl.checked = !!s.defaultReasonCollapsed;
   if(typeof s.memoryEnabled !== "undefined") memoryToggleEl.checked = !!s.memoryEnabled;
@@ -788,11 +779,11 @@ function loadSettings(){
 
 function saveSettings(){
   const settings = {
-    apiProvider: apiProviderEl.value,
     aiNick: aiNickEl.value,
     signature: signatureInputEl.value,
     userPrompt: userPromptEl.value,
     apiKey: apiKeyEl.value,
+    geminiMode: geminiToggleEl.checked,
     reasoningEnabled: reasoningToggleEl.checked,
     defaultReasonCollapsed: defaultReasonCollapsedToggleEl.checked,
     memoryEnabled: memoryToggleEl.checked,
@@ -802,8 +793,8 @@ function saveSettings(){
   headerTitleUpdate();
 }
 
-function getApiProvider() { return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiProvider || "deepseek"; }
 function getApiKey(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").apiKey || ""; }
+function isGeminiMode(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").geminiMode; }
 function isReasoningEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").reasoningEnabled; }
 function isDefaultReasonCollapsed(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").defaultReasonCollapsed; }
 function isMemoryEnabled(){ return !!JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}").memoryEnabled; }
@@ -868,30 +859,19 @@ manualMemoryInput.addEventListener("keydown", (e) => {
   }
 });
 
-/* ============ 记忆解析器（改进版）=========== */
+/* ============ 记忆解析器 =========== */
 function executeMemoryTags(text) {
-  // 支持的引号集合：英文双引号 "，中文引号 “ ”，以及单引号 ‘ ’（如果未来需要）
   const QUOTE = `['"“”‘’]`;
-
-  const updateRegex = new RegExp(
-    `\\[UPDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\]`,
-    'g'
-  );
-
-  // 优化一：修改正则，兼容 AI 不带引号的数字输出
-  const setDateRegex = new RegExp(
-    `\\[SETDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\s*[,\\uff0c]\\s*number\\s*:\\s*(?:${QUOTE})?(\\d+)(?:${QUOTE})?\\]`,
-    'g'
-  );
+  const updateRegex = new RegExp(`\\[UPDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\]`, 'g');
+  const setDateRegex = new RegExp(`\\[SETDATE_MEMORY:(${QUOTE})([\\s\\S]*?)\\1\\s*[,\\uff0c]\\s*number\\s*:\\s*(?:${QUOTE})?(\\d+)(?:${QUOTE})?\\]`, 'g');
   
   let newText = text;
-  let logs = [];
+  let logs =[];
   let hasUpdate = false;
   
   const backup = [...memories];
 
   let match;
-  // 处理 UPDATE_MEMORY
   while ((match = updateRegex.exec(text)) !== null) {
       const content = match[2];
       memories.push(content);
@@ -899,7 +879,6 @@ function executeMemoryTags(text) {
       hasUpdate = true;
   }
 
-  // 处理 SETDATE_MEMORY
   while ((match = setDateRegex.exec(text)) !== null) {
       const content = match[2];
       const num = parseInt(match[3], 10);
@@ -911,7 +890,6 @@ function executeMemoryTags(text) {
       }
   }
   
-  // 清除标签（把所有匹配到的标签从文本中移除）
   newText = newText.replace(updateRegex, "");
   newText = newText.replace(setDateRegex, "");
   
@@ -919,39 +897,26 @@ function executeMemoryTags(text) {
       saveMemoriesToStorage();
   }
   
-  return {
-      cleanedText: newText,
-      logs: logs,
-      backup: backup,
-      hasUpdate: hasUpdate
-  };
+  return { cleanedText: newText, logs: logs, backup: backup, hasUpdate: hasUpdate };
 }
 
 /* ============ 沉浸模式分条消息处理 ============ */
 async function processImmersiveResponse(fullText) {
     const { cleanedText } = executeMemoryTags(fullText);
-    
-    // 优化三：修改分隔正则，使其匹配更宽容（兼容中英方括号，更多空格可能性）
-    // 捕获组1是数字。Split 会保留捕获组。
     const splitRegex = /[\[【]\s*停顿[:：\s]*(\d+)[^\]】]*[\]】]/gi;
-    
     const segments = cleanedText.split(splitRegex);
-    // 数组结构会是：[Text, DelayStr, Text, DelayStr, Text...]
     
     for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
-        
-        // 奇数索引是捕获的数字（split机制），偶数索引是文本
         if (i % 2 === 1) {
             let delay = parseInt(segment, 10);
             if (isNaN(delay)) delay = 0;
-            if (delay > 7) delay = 7; // 限制最大7秒
+            if (delay > 7) delay = 7;
             
             if (delay > 0) {
                 await new Promise(resolve => setTimeout(resolve, delay * 1000));
             }
         } else {
-            // 文本内容
             if (segment.trim()) {
                 addMessage("assistant", segment.trim());
             }
@@ -959,7 +924,6 @@ async function processImmersiveResponse(fullText) {
     }
 }
 
-// 锁定/解锁界面
 function setInputLock(locked) {
     inputEl.disabled = locked;
     sendBtn.disabled = locked;
@@ -969,7 +933,6 @@ async function sendMessage(){
   const text = inputEl.value.trim();
   if(!text) return;
   
-  // 锁定界面
   setInputLock(true);
   
   inputEl.value = "";
@@ -992,70 +955,27 @@ async function sendMessage(){
   let sysPrompt = `现在是 ${getBeijingTime()}（北京时间二十四小时制），用户提示：${userPromptEl.value||""}`;
   
   if(isMemoryEnabled()){
-     // 优化二：带序号的列表排版格式，替代原本的 JSON
      let memText = "暂无记忆";
      if (memories && memories.length > 0) {
          memText = memories.map((mem, index) => `${index + 1}. ${mem}`).join("\n");
      }
-     
-     sysPrompt += `
-\n你拥有长期记忆功能。
-当前记忆库：
-<memory>
-${memText}
-</memory>
-
-行为准则：
-​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性，不要突兀提出记忆，不合适时禁止使用
-
-你拥有添加记忆的能力：
-​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：
-
-[UPDATE_MEMORY:"内容"]
-#该工具为增加记忆，禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎
-
-[SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]
-#该工具为更改记忆
-
-##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前
-
-可以从平常和用户的聊天中提取有用长期信息记忆
-
-​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。
-`;
+     sysPrompt += `\n你拥有长期记忆功能。\n当前记忆库：\n<memory>\n${memText}\n</memory>\n行为准则：\n​即使当前的对话历史被清空，你也要根据记忆库的内容来保持人设的一致性，不要突兀提出记忆，不合适时禁止使用\n你拥有添加记忆的能力：\n​##十分重要：如果用户提到了新的重要个人信息，请在回复的开头增加一个特殊格式：\n[UPDATE_MEMORY:"内容"]\n#该工具为增加记忆，禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎\n[SETDATE_MEMORY:"内容",number:"需要修改的记忆的序号"]\n#该工具为更改记忆\n##必须严格按照以上格式进行回复，一旦使用两个标签，一定要将标签置于对话最前\n可以从平常和用户的聊天中提取有用长期信息记忆\n​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。`;
   }
 
-  // 沉浸模式：注入分条回复指令
   if (isImmersive) {
-      sysPrompt += `
-当你回复信息时，你可以把一段话分成多段发送。
-请在需要分段的地方插入：[停顿:2(单位秒)]
-最大时间7秒
-格式：
-[停顿:2]
-
-示例：
-[记忆标签]
-第一段话内容...
-[停顿:2]
-第二段话内容...
-
-请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间
-
-当没有必要分条或你的消息太短时，不要分条
-
-停顿时间视信息长短而定，每条一般3秒-5秒
-`;
+      sysPrompt += `\n当你回复信息时，你可以把一段话分成多段发送。\n请在需要分段的地方插入：[停顿:2(单位秒)]\n最大时间7秒\n格式：\n[停顿:2]\n示例：\n[记忆标签]\n第一段话内容...\n[停顿:2]\n第二段话内容...\n请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间\n当没有必要分条或你的消息太短时，不要分条\n停顿时间视信息长短而定，每条一般3秒-5秒`;
   }
 
-  const apiMessages = [{role:"system", content: sysPrompt}];
+  // 通用 Messages 构造
+  const apiMessages =[];
   for(const m of messages){
     if(m.role==="assistant" && m.content==="_typing") continue;
+    if(m.role === "system") continue; 
     if(m.role === "assistant" || m.role === "user") apiMessages.push({role:m.role, content:m.content});
   }
 
   if (isImmersive) {
-      const userMsgCount = messages.filter(m => m.role === "user").length;
+      const userMsgCount = apiMessages.filter(m => m.role === "user").length;
       if (userMsgCount > 2 && userMsgCount % 2 === 0) {
           const lastMsg = apiMessages[apiMessages.length - 1];
           if (lastMsg && lastMsg.role === "user") {
@@ -1064,7 +984,6 @@ ${memText}
       }
   }
 
-  // 非沉浸模式下：添加占位符消息
   let placeholderId = null;
   let replyMessageIndex = -1;
   const placeholderReasonCollapsed = (isReasoningEnabled() && isDefaultReasonCollapsed());
@@ -1079,80 +998,63 @@ ${memText}
   try {
     const apiKey = getApiKey();
     if(!apiKey) throw new Error("请在设置中填写 API Key");
+    
+    const isGemini = isGeminiMode();
+    let fetchUrl = "";
+    let fetchHeaders = {};
+    let fetchBody = "";
 
-    const provider = getApiProvider();
-    let fetchUrl, fetchHeaders, fetchBodyStr;
-    let isGeminiNative = false;
-
-    // 根据选定的 API Provider 构造请求
-    if (provider === "gemini") {
-        isGeminiNative = true;
-        
-        // 按照用户需求配置模型及思考等级：
-        // 未开启思考：Gemini 3.1 Flash-Lite, 思考等级 minimal
-        // 开始思考模式：Gemini 3 Flash, 思考等级 high
+    if (isGemini) {
         const modelToUse = isReasoningEnabled() ? "gemini-3-flash" : "gemini-3.1-flash-lite";
-        const thoughtLvl = isReasoningEnabled() ? "HIGH" : "MINIMAL";
-
+        const geminiMessages = apiMessages.map(m => ({
+            role: m.role === "user" ? "user" : "model",
+            parts: [{ text: m.content }]
+        }));
+        
         fetchUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:streamGenerateContent?alt=sse&key=${apiKey}`;
         fetchHeaders = { "Content-Type": "application/json" };
-        
-        let sysText = "";
-        const contents = [];
-        for (let i = 0; i < apiMessages.length; i++) {
-            if (apiMessages[i].role === "system") {
-                sysText = apiMessages[i].content;
-            } else {
-                contents.push({
-                    role: apiMessages[i].role === "assistant" ? "model" : "user",
-                    parts: [{ text: apiMessages[i].content }]
-                });
-            }
-        }
-        
-        const reqObj = {
-            contents: contents,
+        fetchBody = JSON.stringify({
+            systemInstruction: { parts: [{ text: sysPrompt }] },
+            contents: geminiMessages,
             generationConfig: {
-                thoughtLevel: thoughtLvl
+                thinkingConfig: {
+                    thinkingLevel: isReasoningEnabled() ? "HIGH" : "MINIMAL",
+                    includeThoughts: true
+                }
             }
-        };
-        if (sysText) {
-            reqObj.systemInstruction = { parts: [{ text: sysText }] };
-        }
-        fetchBodyStr = JSON.stringify(reqObj);
-
+        });
     } else {
-        // DeepSeek 默认逻辑
+        const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
+        const dsMessages =[{ role: "system", content: sysPrompt }, ...apiMessages];
+        
         fetchUrl = API_BASE + "/chat/completions";
         fetchHeaders = { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey };
-        const modelToUse = isReasoningEnabled() ? MODEL_REASONER : MODEL_CHAT;
-        fetchBodyStr = JSON.stringify({ model: modelToUse, messages: apiMessages, stream: true });
+        fetchBody = JSON.stringify({ model: modelToUse, messages: dsMessages, stream: true });
     }
 
-    const res = await fetch(fetchUrl, {
-      method: "POST",
-      headers: fetchHeaders,
-      body: fetchBodyStr
-    });
+    const res = await fetch(fetchUrl, { method: "POST", headers: fetchHeaders, body: fetchBody });
 
     if(!res.ok) {
-        const errText = await res.text();
-        let errMsg = errText;
-        try { errMsg = JSON.parse(errText).error.message || errText; } catch(e){}
-        throw new Error(`API Error ${res.status}: ${errMsg}`);
+        let errText = res.statusText;
+        try {
+            const errJson = await res.json();
+            errText = JSON.stringify(errJson.error || errJson);
+        } catch(e) {
+            errText = await res.text();
+        }
+        throw new Error(`API Error ${res.status}: ${errText}`);
     }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     
-    // 准备回复对象
     let reply = {
         role: "assistant", 
         content: "", 
         reasoning: null, 
         reasonCollapsed: placeholderReasonCollapsed, 
         id: placeholderId,
-        memoryInfo: { logs: [], backup: null, reverted: false } 
+        memoryInfo: { logs:[], backup: null, reverted: false } 
     };
     if(!isImmersive && messages[replyMessageIndex]) {
         reply.id = messages[replyMessageIndex].id;
@@ -1162,6 +1064,48 @@ ${memText}
     let checkTags = isMemoryEnabled() && !isImmersive; 
     let streamBuffer = ""; 
     let fullImmersiveBuffer = ""; 
+
+    function handleNewContent(newContent) {
+        if (isImmersive) {
+            fullImmersiveBuffer += newContent;
+        } else {
+            if(checkTags){
+                streamBuffer += newContent;
+                if(!streamBuffer.trimStart().startsWith("[")){
+                    reply.content += streamBuffer;
+                    streamBuffer = "";
+                    checkTags = false; 
+                } else {
+                    while(true) {
+                        const startIndex = streamBuffer.indexOf("[");
+                        const endIndex = streamBuffer.indexOf("]");
+                        if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
+                            const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
+                            const result = executeMemoryTags(tagStr);
+                            if(result.hasUpdate){
+                                if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
+                                reply.memoryInfo.logs.push(...result.logs);
+                            } else {
+                                reply.content += tagStr; 
+                            }
+                            streamBuffer = streamBuffer.substring(endIndex + 1);
+                        } else {
+                            break;
+                        }
+                    }
+                    if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
+                        reply.content += streamBuffer;
+                        streamBuffer = "";
+                        checkTags = false;
+                    }
+                }
+            } else {
+                reply.content += newContent;
+            }
+            messages[replyMessageIndex] = reply;
+            renderMessages();
+        }
+    }
 
     while(true){
       const {done, value} = await reader.read();
@@ -1176,83 +1120,32 @@ ${memText}
         if(!data || data==="[DONE]") continue;
         try{
           const obj = JSON.parse(data);
-          let rContent = "";
-          let tContent = "";
-
-          if (isGeminiNative) {
-              const partsArr = obj.candidates?.[0]?.content?.parts || [];
-              for (const p of partsArr) {
-                  // 囊括所有可能的 Gemini Thought 结构
-                  if (p.thought === true && p.text) {
-                      rContent += p.text;
-                  } else if (typeof p.thought === 'string') {
-                      rContent += p.thought;
+          
+          if (isGemini) {
+              const partsArray = obj.candidates?.[0]?.content?.parts ||[];
+              for (const p of partsArray) {
+                  if (p.thought) {
+                      if (!isImmersive) {
+                          reply.reasoning = (reply.reasoning || "") + p.text;
+                          messages[replyMessageIndex] = reply;
+                          renderMessages();
+                      }
                   } else if (p.text) {
-                      tContent += p.text;
+                      handleNewContent(p.text);
                   }
               }
           } else {
               const delta = obj.choices?.[0]?.delta || {};
               if (delta.reasoning_content) {
-                  rContent += delta.reasoning_content;
+                 if(!isImmersive) {
+                     reply.reasoning = (reply.reasoning || "") + delta.reasoning_content;
+                     messages[replyMessageIndex] = reply;
+                     renderMessages();
+                 }
               }
               if (delta.content) {
-                  tContent += delta.content;
+                  handleNewContent(delta.content);
               }
-          }
-
-          // === 更新思考过程 ===
-          if(rContent){
-             if(!isImmersive) {
-                 reply.reasoning = (reply.reasoning || "") + rContent;
-                 messages[replyMessageIndex] = reply;
-                 renderMessages();
-             }
-          }
-
-          // === 更新正文内容 ===
-          if(tContent){
-            if (isImmersive) {
-                fullImmersiveBuffer += tContent;
-            } else {
-                if(checkTags){
-                    streamBuffer += tContent;
-                    if(!streamBuffer.trimStart().startsWith("[")){
-                        reply.content += streamBuffer;
-                        streamBuffer = "";
-                        checkTags = false; 
-                    } else {
-                        while(true) {
-                            const startIndex = streamBuffer.indexOf("[");
-                            const endIndex = streamBuffer.indexOf("]");
-                            
-                            if(startIndex !== -1 && endIndex !== -1 && endIndex > startIndex){
-                                const tagStr = streamBuffer.substring(startIndex, endIndex + 1);
-                                const result = executeMemoryTags(tagStr);
-                                
-                                if(result.hasUpdate){
-                                    if(reply.memoryInfo.backup === null) reply.memoryInfo.backup = result.backup;
-                                    reply.memoryInfo.logs.push(...result.logs);
-                                } else {
-                                    reply.content += tagStr; 
-                                }
-                                streamBuffer = streamBuffer.substring(endIndex + 1);
-                            } else {
-                                break;
-                            }
-                        }
-                        if(streamBuffer.length > 0 && !streamBuffer.trimStart().startsWith("[")){
-                            reply.content += streamBuffer;
-                            streamBuffer = "";
-                            checkTags = false;
-                        }
-                    }
-                } else {
-                    reply.content += tContent;
-                }
-                messages[replyMessageIndex] = reply;
-                renderMessages();
-            }
           }
         }catch(e){}
       }
@@ -1261,7 +1154,7 @@ ${memText}
     if(isImmersive) {
         await processImmersiveResponse(fullImmersiveBuffer);
     } else {
-        if(streamBuffer){
+        if(streamBuffer) {
             reply.content += streamBuffer;
         }
         messages[replyMessageIndex] = reply;
@@ -1278,9 +1171,7 @@ ${memText}
         }
     }
   } finally {
-      // 解锁
       setInputLock(false);
-      
       if(isImmersive) {
           if(immersiveTimer) clearTimeout(immersiveTimer);
           aiTitleTextEl.textContent = originalTitle; 
@@ -1296,7 +1187,7 @@ closeSettingsBtn.addEventListener("click", ()=>{ settingsModal.style.display="no
 saveSettingsBtn.addEventListener("click", ()=>{ saveSettings(); settingsModal.style.display="none"; renderMessages(); });
 
 clearHistoryBtn.addEventListener("click", ()=>{ confirmModal.style.display = "flex"; });
-confirmClearBtn.addEventListener("click", ()=>{ messages = []; localStorage.removeItem(STORAGE_KEY); renderMessages(); confirmModal.style.display = "none"; });
+confirmClearBtn.addEventListener("click", ()=>{ messages =[]; localStorage.removeItem(STORAGE_KEY); renderMessages(); confirmModal.style.display = "none"; });
 cancelClearBtn.addEventListener("click", ()=>{ confirmModal.style.display = "none"; });
 
 sendBtn.addEventListener("click", sendMessage);
