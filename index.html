@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>DeepSeek Chat UI</title>
+  <title>AI Chat</title>
   
   <!-- Markdown / Code / Math Dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -15,9 +15,6 @@
   <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
 
   <style>
-    /* ==========================================================================
-       DeepSeek Chat UI - 样式表
-       ========================================================================== */
     :root {
       --bg: #0F1113;
       --panel: #191B1E;
@@ -172,7 +169,17 @@
     .reason-label { font-size: 13px; font-weight: 600; color: #aaa; display: flex; align-items: center; gap: 6px; }
     .reasoning-toggle button { background: rgba(255, 255, 255, 0.05); border: none; color: #fff; cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 6px; font-weight: 600; transition: background 0.2s; }
     .reasoning-toggle button:hover { background: rgba(255, 255, 255, 0.15); }
-    .reasoning-content { padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, 0.03); white-space: pre-wrap; font-family: inherit; }
+    
+    /* 支持思维链内 Markdown 格式正确渲染的小修饰 */
+    .reasoning-content { padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, 0.03); font-family: inherit; word-break: break-word; }
+    .reasoning-content > *:first-child { margin-top: 0; }
+    .reasoning-content > *:last-child { margin-bottom: 0; }
+    .reasoning-content h1, .reasoning-content h2, .reasoning-content h3 { font-size: 14px; color: #ddd; margin: 6px 0 4px; }
+    .reasoning-content p { margin: 4px 0; }
+    .reasoning-content ul, .reasoning-content ol { margin: 4px 0 4px 18px; padding: 0; }
+    .reasoning-content strong { color: #ddd; }
+    .reasoning-content pre { background: #0b0c0d; border-radius: 6px; padding: 32px 10px 10px; margin: 6px 0; overflow: auto; font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.04); position: relative;}
+    .reasoning-content code.inline { background: rgba(255, 255, 255, 0.05); padding: 2px 4px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 12px; color: #ff7b72; }
 
     /* 记忆列表和通知 UI */
     .memory-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px; background: #151719; }
@@ -261,7 +268,7 @@
     <h2>设置</h2>
     
     <div class="modal-row">
-      <label>模型引擎</label>
+      <label>模型服务商</label>
       <select id="cfg-engine" onchange="switchEngine()">
         <option value="deepseek">DeepSeek (API)</option>
         <option value="gemini">Google Gemini (API)</option>
@@ -390,9 +397,8 @@
 </div>
 
 <script>
-/* ==========================================================================
-   全局配置与状态管理
-   ========================================================================== */
+
+//全局配置与状态管理
 const DEFAULT_CONFIG = {
   engine: 'deepseek',
   apiKey_deepseek: '',
@@ -434,9 +440,6 @@ const sendBtn = document.getElementById('send-btn');
 const uiNickname = document.getElementById('ui-nickname');
 const uiBio = document.getElementById('ui-bio');
 
-/* ==========================================================================
-   初始化与本地存储
-   ========================================================================== */
 function init() {
   const savedCfg = localStorage.getItem('chatConfig');
   if (savedCfg) {
@@ -487,9 +490,7 @@ function applyConfigUI() {
   uiBio.innerText = config.bio;
 }
 
-/* ==========================================================================
-   弹窗与UI提示交互
-   ========================================================================== */
+//弹窗与UI提示交互
 function showAlert(title, msg, onConfirm = null, showCancel = false) {
   document.getElementById('confirm-title').innerText = title;
   document.getElementById('confirm-msg').innerText = msg;
@@ -510,9 +511,7 @@ function closeConfirmModal() {
   document.getElementById('confirm-modal').classList.remove('active');
 }
 
-/* ==========================================================================
-   主设置界面交互
-   ========================================================================== */
+//主设置界面交互
 function openSettings() {
   currentEngineInSettings = config.engine;
   tempKeys.deepseek = config.apiKey_deepseek || '';
@@ -567,9 +566,7 @@ function saveSettings() {
   closeSettings();
 }
 
-/* ==========================================================================
-   记忆库与开场白管理 (二级菜单)
-   ========================================================================== */
+//记忆库与开场白管理 (二级菜单)
 function toggleMemoryUI() {
   const isChecked = document.getElementById('cfg-memory').checked;
   document.getElementById('memory-manage-row').style.display = isChecked ? 'block' : 'none';
@@ -674,9 +671,7 @@ function handleAIMemoryAction(actionStr) {
   return { matched, notices, undoActions };
 }
 
-/* ==========================================================================
-   UI 渲染与对话处理
-   ========================================================================== */
+//UI 渲染与对话处理
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag]));
 }
@@ -767,10 +762,10 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
     html += `
       <div class="reasoning-box">
         <div class="reasoning-toggle" onclick="toggleReasoning(this)">
-          <span class="reason-label">Thinking</span>
+          <span class="reason-label">思维链    </span>
           <button>${btnText}</button>
         </div>
-        <div class="reasoning-content" style="display: ${foldState};">${escapeHTML(initialReasoning)}</div>
+        <div class="reasoning-content" style="display: ${foldState};"></div>
       </div>
     `;
   } else if (!config.immersive) {
@@ -789,6 +784,11 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
   
   div.innerHTML = html;
   chatContainer.appendChild(div);
+  
+  if (initialReasoning) {
+    updateBubbleReasoning(div, initialReasoning);
+  }
+  
   scrollToBottom();
   return div;
 }
@@ -820,7 +820,10 @@ function updateBubbleReasoning(bubbleDiv, text) {
   const rContent = bubbleDiv.querySelector('.reasoning-content');
   if (rBox && rContent) {
     rBox.style.display = 'block';
-    rContent.innerText = text;
+    const parsed = DOMPurify.sanitize(marked.parse(text));
+    rContent.innerHTML = parsed.replace(/<pre><code class="language-(.*?)">/g, (match, lang) => {
+        return `<pre><div class="code-controls"><span class="lang-badge">${lang}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><code class="language-${lang}">`;
+    });
   }
 }
 
@@ -902,9 +905,7 @@ function setTypingUI(isTyping) {
   }
 }
 
-/* ==========================================================================
-   Prompt 组装
-   ========================================================================== */
+//Prompt 组装
 function getSystemPrompt() {
   const now = new Date();
   const days =['日','一','二','三','四','五','六'];
@@ -946,21 +947,24 @@ ${memText}
 #该工具为更改记忆
 
 ##必须严格按照以上格式进行回复，一旦使用，一定要将标签置于对话最前
-可以从平常和用户的聊天中提取有用长期信息记忆
-​禁止记录：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。\n\n`;
+可以从平常和用户的聊天中提取有用的个人信息记忆
+​禁止记录内容：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。\n\n`;
   }
 
   return prompt;
 }
 
-/* ==========================================================================
-   Stream Handlers
-   ========================================================================== */
 class NormalStreamHandler {
-  constructor() {
+  constructor(engine) {
+    this.engine = engine;
     this.rawText = "";
     this.reasoningText = "";
     this.cursor = 0;
+    
+    // 专为 Gemini 设计的思考过程缓冲
+    this.geminiReasoningRaw = "";
+    this.geminiReasoningCursor = 0;
+    
     this.isFinished = false;
     
     this.currentBubble = null;
@@ -972,12 +976,21 @@ class NormalStreamHandler {
 
   append(content, isReasoning = false) {
     if (isReasoning) {
-      this.reasoningText += content;
-      if (!this.currentBubble) {
-        removeLoading();
-        this.currentBubble = createAIBubble(true, this.reasoningText);
+      if (this.engine === 'gemini') {
+        this.geminiReasoningRaw += content;
+        if (!this.currentBubble) {
+          removeLoading();
+          this.currentBubble = createAIBubble(true, null);
+        }
       } else {
-        updateBubbleReasoning(this.currentBubble, this.reasoningText);
+        // Deepseek的流式本来就足够细腻，直接渲染
+        this.reasoningText += content;
+        if (!this.currentBubble) {
+          removeLoading();
+          this.currentBubble = createAIBubble(true, this.reasoningText);
+        } else {
+          updateBubbleReasoning(this.currentBubble, this.reasoningText);
+        }
       }
     } else {
       this.rawText += content;
@@ -989,6 +1002,24 @@ class NormalStreamHandler {
   }
 
   processLoop() {
+    // 首先处理 Gemini 的思维链平滑吐字动画
+    if (this.engine === 'gemini' && this.geminiReasoningCursor < this.geminiReasoningRaw.length) {
+      let pending = this.geminiReasoningRaw.length - this.geminiReasoningCursor;
+      let step = Math.max(1, Math.floor(pending / 10)); // 保证平滑过渡速度
+      let chunkStr = this.geminiReasoningRaw.slice(this.geminiReasoningCursor, this.geminiReasoningCursor + step);
+      this.reasoningText += chunkStr;
+      this.geminiReasoningCursor += chunkStr.length;
+      
+      if (!this.currentBubble) {
+        removeLoading();
+        this.currentBubble = createAIBubble(true, null);
+      }
+      updateBubbleReasoning(this.currentBubble, this.reasoningText);
+      scrollToBottom();
+      return; // 思维链没播完前，暂停播放后续正文
+    }
+
+    // 处理正文逻辑
     if (this.cursor < this.rawText.length) {
       let remaining = this.rawText.slice(this.cursor);
       
@@ -1065,7 +1096,8 @@ class NormalStreamHandler {
 }
 
 class ImmersiveStreamHandler {
-  constructor() {
+  constructor(engine) {
+    this.engine = engine;
     this.rawText = "";
     this.reasoningText = ""; 
   }
@@ -1127,9 +1159,7 @@ class ImmersiveStreamHandler {
   }
 }
 
-/* ==========================================================================
-   API 调用控制
-   ========================================================================== */
+//API 调用控制
 async function sendMessage() {
   const currentApiKey = config.engine === 'deepseek' ? config.apiKey_deepseek : config.apiKey_gemini;
   if (!currentApiKey) {
@@ -1145,7 +1175,6 @@ async function sendMessage() {
   inputArea.disabled = true;
   sendBtn.disabled = true;
 
-  // 【修复bug所在】必须先将用户的气泡添加到列表中
   appendUserBubble(text);
   chatHistory.push({ role: 'user', content: text });
 
@@ -1153,11 +1182,10 @@ async function sendMessage() {
     setTypingUI(true);
   } else {
     uiNickname.innerText = config.nickname;
-    // 【修复bug所在】再显示AI正在思考的加载动画，这样圆点就会正确地出现在用户消息下方了
     showLoading(); 
   }
 
-  const handler = config.immersive ? new ImmersiveStreamHandler() : new NormalStreamHandler();
+  const handler = config.immersive ? new ImmersiveStreamHandler(config.engine) : new NormalStreamHandler(config.engine);
 
   try {
     if (config.engine === 'deepseek') {
@@ -1192,9 +1220,7 @@ function finalizeMessage(rawText, reasoningText, isError = false) {
   }
 }
 
-/* ==========================================================================
-   DeepSeek API 接入
-   ========================================================================== */
+//DeepSeek API 接入
 async function fetchDeepSeek(handler, apiKey) {
   const messages =[{ role: 'system', content: getSystemPrompt() }];
   
@@ -1257,9 +1283,7 @@ async function fetchDeepSeek(handler, apiKey) {
   handler.finish();
 }
 
-/* ==========================================================================
-   Gemini API 接入
-   ========================================================================== */
+// Gemini API
 async function fetchGemini(handler, apiKey) {
   const model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -1279,7 +1303,10 @@ async function fetchGemini(handler, apiKey) {
 
   if (config.thinking || config.immersive) {
     payload.generationConfig = {
-      thinkingConfig: { thinkingLevel: "HIGH" }
+      thinkingConfig: { 
+        thinkingLevel: "HIGH",
+        includeThoughts: true 
+      }
     };
   }
 
@@ -1315,7 +1342,11 @@ async function fetchGemini(handler, apiKey) {
           if (json.candidates && json.candidates[0].content && json.candidates[0].content.parts) {
             json.candidates[0].content.parts.forEach(part => {
               if (part.text) {
-                handler.append(part.text, false);
+                if (part.thought) {
+                  handler.append(part.text, true); 
+                } else {
+                  handler.append(part.text, false); 
+                }
               }
             });
           }
@@ -1328,7 +1359,6 @@ async function fetchGemini(handler, apiKey) {
   handler.finish();
 }
 
-// 启动应用
 window.onload = init;
 
 </script>
