@@ -421,7 +421,7 @@
 <!-- Error Alert Modal -->
 <div class="modal" id="alert-modal" style="z-index: 300;">
   <div class="modal-content" style="max-width: 320px;">
-    <h2 id="alert-title" style="border:none; padding-bottom: 0; color: #ff4d4f;">错误</h2>
+    <h2 id="alert-title" style="border:none; padding-bottom: 0; color: #0066CC;">错误</h2>
     <div style="color: var(--muted); font-size: 14px; margin: 10px 0;" id="alert-msg"></div>
     <div id="alert-detail-box" style="display:none; margin-top:10px; padding:8px; background:rgba(0,0,0,0.3); border-radius:6px; font-size:12px; color:#ccc; word-break:break-all; max-height:150px; overflow-y:auto; font-family:monospace;"></div>
     <div class="modal-actions" style="justify-content: space-between; align-items: center; margin-top: 16px;">
@@ -895,7 +895,7 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
     html += `
       <div class="reasoning-box">
         <div class="reasoning-toggle" onclick="toggleReasoning(this)">
-          <span class="reason-label">思维链    </span>
+          <span class="reason-label">思维链  </span>
           <button>${btnText}</button>
         </div>
         <div class="reasoning-content" style="display: ${foldState};"></div>
@@ -1342,7 +1342,7 @@ async function doRequest() {
     if(handler) handler.finish();
     console.error(err);
     
-    showErrorAlert("请求发生错误", err.message, err.detail || err.toString());
+    showErrorAlert("出现了一些小问题...", err.message, err.detail || err.toString());
     
     finalizeMessage("Error", "", true);
     appendRetryButton();
