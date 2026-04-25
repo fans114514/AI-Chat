@@ -1463,7 +1463,7 @@ async function fetchDeepSeek(handler, apiKey) {
 
 // Gemini API
 async function fetchGemini(handler, apiKey) {
-  const model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
+  const model = (config.thinking || config.immersive) ? "gemini-3.1-flash-lite-preview" : "gemini-3.1-flash-lite-preview";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   let contents =[];
