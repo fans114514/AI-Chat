@@ -560,8 +560,10 @@ function init() {
     setTimeout(() => scrollToBottom(true), 300);
   });
 
+  // 移除了默认的 Enter 发送功能，使得回车功能回归普通的换行
+  // 这里添加 Ctrl+Enter 或者 Cmd+Enter 快速发送作为可选补充
   inputArea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (!sendBtn.disabled) {
         sendMessage();
@@ -1016,7 +1018,7 @@ window.undoMemoryAction = function(btnEl, event) {
     }
   }
   saveToLocal();
-  btnEl.innerText = "已成功撤销";
+  btnEl.innerText = "已撤销";
   btnEl.disabled = true;
   btnEl.style.opacity = "0.5";
 };
@@ -1183,19 +1185,12 @@ class NormalStreamHandler {
 
       let possibleTagMatch = remaining.match(/^[\[【][^\]】]*$/);
       if (possibleTagMatch && !this.isFinished) {
-        return;
+        return; // 若有以括号开头且未闭合的残余，等待其接收完成
       }
 
-      let nextBracket = remaining.indexOf('[');
-      let nextBracket2 = remaining.indexOf('【');
-      if (nextBracket === 0 || nextBracket2 === 0) {
-        if(this.isFinished) {
-          this.currentText += remaining[0];
-          this.cursor += 1;
-          this.updateBubble();
-        }
-        return;
-      }
+      // 修复死锁：跳过开头的首个括号，以找到正文中的下一个包裹内容，并防止在此被拦截陷入死循环
+      let nextBracket = remaining.indexOf('[', 1);
+      let nextBracket2 = remaining.indexOf('【', 1);
 
       let nextIdx = Math.min(
         nextBracket === -1 ? Infinity : nextBracket,
