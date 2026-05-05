@@ -31,7 +31,7 @@
       color: #e6eef6;
       font-family: Inter, "Helvetica Neue", Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
-      overflow: hidden; /* 防止因为键盘弹起或输入框等挤压出现整体滚动 */
+      overflow: hidden;
     }
 
     /* 采用绝对定位布局配合内垫片实现玻璃模糊穿透 */
@@ -469,7 +469,45 @@ const markedOptions = {
     }
 };
 marked.use(markedOptions);
-marked.use(markedKatex({ throwOnError: false }));
+
+// 增强：拦截 latex/tex 代码块进行 KaTeX 解析，防止只渲染为纯文本块
+marked.use({
+  renderer: {
+    code(token, param2) {
+      // 兼容各个版本的 marked 参数形式
+      let text, lang;
+      if (typeof token === 'string') {
+        text = token;
+        lang = param2;
+      } else {
+        text = token.text;
+        lang = token.lang;
+      }
+      
+      if (lang && ['latex', 'tex', 'math', 'katex'].includes(lang.toLowerCase())) {
+        try {
+          const html = katex.renderToString(text, {
+            displayMode: true,
+            throwOnError: false,
+            trust: true, // 允许 scalebox 等复杂渲染
+            strict: false
+          });
+          return `<div class="katex-display" style="overflow-x: auto; padding: 10px 0;">${html}</div>`;
+        } catch (e) {
+          console.warn("KaTeX render error:", e);
+        }
+      }
+      return false; // 如果非数学块或报错，回退给原有的代码块渲染器
+    }
+  }
+});
+
+// 增强：增加 trust 和 strict 属性使得原生 LaTeX 扩展支持 \colorbox \scalebox 以及特殊 Emoji 字符
+marked.use(markedKatex({ 
+  throwOnError: false,
+  trust: true, 
+  strict: false 
+}));
 
 const chatContainer = document.getElementById('chat-container');
 const inputArea = document.getElementById('input');
@@ -942,10 +980,35 @@ function toggleReasoning(el) {
   scrollToBottom(true);
 }
 
+// 支持KaTeX复杂的HTML内联样式以及MathML和SVG扩展
+const dompurifyOptions = {
+  USE_PROFILES: { html: true, mathMl: true, svg: true },
+  ADD_ATTR: ['style', 'class', 'id', 'dir', 'aria-hidden']
+};
+
+// 预处理LaTeX：对于没有被包含在代码块或数学块中的独立复杂LaTeX指令，进行自动$$包裹以便于正确渲染
+function preprocessLaTeX(text) {
+  if (!text) return text;
+  let blocks = text.split(/\n\s*\n/);
+  for (let i = 0; i < blocks.length; i++) {
+    let block = blocks[i];
+    let trimmed = block.trim();
+    // 排除已被代码块或公式块包裹的内容
+    if (!trimmed.startsWith('```') && !trimmed.startsWith('$$') && !trimmed.startsWith('\\[')) {
+      if (/^\s*\\(?:scalebox|rotatebox|colorbox|textcolor|text(?:superscript|subscript)?|frac|sqrt|begin|int|sum|hspace|vspace)\b/.test(trimmed)) {
+        blocks[i] = '$$\n' + block + '\n$$';
+      }
+    }
+  }
+  return blocks.join('\n\n');
+}
+
 function updateBubbleContent(bubbleDiv, markdownText) {
   const contentDiv = bubbleDiv.querySelector('.text-content');
   if (!contentDiv) return;
-  const parsed = DOMPurify.sanitize(marked.parse(markdownText));
+  const processedText = preprocessLaTeX(markdownText);
+  // DOMPurify 过滤时放行特定的富媒体标签以支持 KaTeX 内联样式渲染
+  const parsed = DOMPurify.sanitize(marked.parse(processedText), dompurifyOptions);
   contentDiv.innerHTML = parsed.replace(/<pre><code class="language-(.*?)">/g, (match, lang) => {
       return `<pre><div class="code-controls"><span class="lang-badge">${lang}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><code class="language-${lang}">`;
   });
@@ -957,7 +1020,8 @@ function updateBubbleReasoning(bubbleDiv, text) {
   const rContent = bubbleDiv.querySelector('.reasoning-content');
   if (rBox && rContent) {
     rBox.style.display = 'block';
-    const parsed = DOMPurify.sanitize(marked.parse(text));
+    const processedText = preprocessLaTeX(text);
+    const parsed = DOMPurify.sanitize(marked.parse(processedText), dompurifyOptions);
     rContent.innerHTML = parsed.replace(/<pre><code class="language-(.*?)">/g, (match, lang) => {
         return `<pre><div class="code-controls"><span class="lang-badge">${lang}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div><code class="language-${lang}">`;
     });
@@ -1064,7 +1128,7 @@ function getSystemPrompt() {
 
 请将你输出的信息合理、自然地分割成多条，并且加入合适的停顿时间
 当没有必要分条或你的消息太短时，不要分条
-停顿时间视信息长短而定，每条一般3秒-7秒\n\n`;
+停顿时间视信息长短而定，每条已般3秒-7秒\n\n`;
   }
 
   if (config.memory) {
