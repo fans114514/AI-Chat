@@ -31,10 +31,9 @@
       color: #e6eef6;
       font-family: Inter, "Helvetica Neue", Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
-      overflow: hidden; /* 防止因为键盘弹起或输入框等挤压出现整体滚动 */
+      overflow: hidden;
     }
 
-    /* 采用绝对定位布局配合内垫片实现玻璃模糊穿透 */
     .app { 
       position: relative;
       height: 100%; 
@@ -57,7 +56,6 @@
       box-sizing: border-box;
     }
 
-    /* AI状态头部样式 */
     .ai-box { display: flex; flex-direction: column; justify-content: center; height: 42px; }
     .ai-title { font-weight: 600; font-size: 16px; letter-spacing: 0.2px; display: flex; align-items: center; transition: all 0.3s; }
     .signature { font-size: 12px; color: var(--muted); margin-top: 4px; transition: all 0.3s; height: 14px; overflow: hidden; }
@@ -78,7 +76,6 @@
       box-sizing: border-box;
     }
 
-    /* 上下占位以使得滚动在脱离头部和底部区域时不会被完全遮挡 */
     main::before {
       content: "";
       display: block;
@@ -94,6 +91,34 @@
 
     .messages { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
 
+    /* 消息与头像包裹器 */
+    .ai-message-row {
+      display: flex;
+      gap: 10px;
+      margin-right: auto;
+      max-width: 90%;
+      align-items: flex-start;
+      animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
+    }
+    .ai-message-row.follow-up {
+      margin-top: -8px;
+    }
+    
+    .ai-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      /* object-fit: fill 能够无视原图比例，强制拉伸成设定的36x36大小（1:1），再配合上方圆角截出圆形 */
+      object-fit: fill; 
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .ai-avatar-placeholder {
+      width: 36px;
+      flex-shrink: 0;
+    }
+
     .msg {
       max-width: 85%;
       padding: 10px 12px;
@@ -102,12 +127,14 @@
       line-height: 1.5;
       word-break: break-word;
       background: var(--bubble);
-      animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
     }
-    .msg.no-anim { animation: none; }
-    .msg.user { margin-left: auto; text-align: left; background: var(--accent); }
-    .msg.ai { margin-right: auto; text-align: left; position: relative; }
-    .msg.ai.group-follow { margin-top: -8px; border-top-left-radius: 4px; }
+    /* 用户消息仍保持独占一行自身动画 */
+    .msg.user { margin-left: auto; text-align: left; background: var(--accent); animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;}
+    .msg.user.no-anim { animation: none; }
+    
+    /* AI消息在外层处理动画和对齐，内部满宽 */
+    .ai-message-row .msg.ai { max-width: 100%; margin: 0; }
+    .ai-message-row .msg.ai.group-follow { border-top-left-radius: 4px; }
 
     .msg-content { display: flex; flex-direction: column; }
     .meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -120,7 +147,8 @@
       gap: 6px;
       padding: 10px 12px;
       margin-right: auto;
-      animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;
+      border-radius: 12px;
+      background: var(--bubble);
     }
     .typing-indicator span {
       width: 6px;
@@ -308,6 +336,11 @@
     </div>
 
     <div class="modal-row">
+      <label>AI 头像 (Base64 或 图片链接)</label>
+      <textarea id="cfg-avatar" placeholder="data:image/png;base64,..." style="min-height: 60px;"></textarea>
+    </div>
+
+    <div class="modal-row">
       <label>个性签名 Tagline</label>
       <input type="text" id="cfg-bio" placeholder="Say hello to your new AI friend">
     </div>
@@ -439,6 +472,7 @@ const DEFAULT_CONFIG = {
   apiKey_deepseek: '',
   apiKey_gemini: '',
   nickname: '新朋友',
+  avatarBase64: '',
   bio: 'Say hello to your new AI friend',
   personality: '你是一个AI伙伴',
   thinking: true,
@@ -653,6 +687,7 @@ function openSettings() {
   document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
   
   document.getElementById('cfg-nickname').value = config.nickname;
+  document.getElementById('cfg-avatar').value = config.avatarBase64 || '';
   document.getElementById('cfg-bio').value = config.bio;
   document.getElementById('cfg-personality').value = config.personality;
   document.getElementById('cfg-thinking').checked = config.thinking;
@@ -685,6 +720,7 @@ function saveSettings() {
   config.apiKey_gemini = tempKeys.gemini;
   
   config.nickname = document.getElementById('cfg-nickname').value || 'New Friend';
+  config.avatarBase64 = document.getElementById('cfg-avatar').value.trim();
   config.bio = document.getElementById('cfg-bio').value;
   config.personality = document.getElementById('cfg-personality').value;
   config.thinking = document.getElementById('cfg-thinking').checked;
@@ -818,8 +854,15 @@ function scrollToBottom(force = false) {
 function showLoading() {
   if (loadingIndicator) return;
   loadingIndicator = document.createElement('div');
-  loadingIndicator.className = 'typing-indicator';
-  loadingIndicator.innerHTML = '<span></span><span></span><span></span>';
+  loadingIndicator.className = 'ai-message-row'; 
+  
+  let innerHtml = '';
+  if (config.avatarBase64) {
+    innerHtml += `<img class="ai-avatar" src="${config.avatarBase64}">`;
+  }
+  innerHtml += `<div class="typing-indicator" style="margin: 0; animation: none;"><span></span><span></span><span></span></div>`;
+  loadingIndicator.innerHTML = innerHtml;
+  
   chatContainer.appendChild(loadingIndicator);
   scrollToBottom(true);
 }
@@ -878,6 +921,29 @@ function appendUserBubble(text, noAnim = false) {
 }
 
 function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = false) {
+  const hasAvatar = !!config.avatarBase64;
+  
+  // 外层包裹器
+  const row = document.createElement('div');
+  row.className = `ai-message-row ${isFollowUp ? 'follow-up' : ''}`;
+
+  // 处理头像占位或渲染
+  if (hasAvatar) {
+    if (!isFollowUp) {
+      const img = document.createElement('img');
+      img.className = 'ai-avatar';
+      img.src = config.avatarBase64;
+      // 避免无效图片导致显示异常破图样式
+      img.onerror = () => { img.style.display = 'none'; };
+      row.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'ai-avatar-placeholder';
+      row.appendChild(placeholder);
+    }
+  }
+
+  // 内部气泡内容
   const div = document.createElement('div');
   div.className = `msg ai ${isFollowUp ? 'group-follow' : ''}`;
   
@@ -918,7 +984,8 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
   html += `<div class="text-content"></div></div>`;
   
   div.innerHTML = html;
-  chatContainer.appendChild(div);
+  row.appendChild(div);
+  chatContainer.appendChild(row);
   
   if (initialReasoning) {
     updateBubbleReasoning(div, initialReasoning);
@@ -926,6 +993,8 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
   
   // 流式或产生过程使用非强制判定，顺应用户此时的滑屏行为
   scrollToBottom(false); 
+  
+  // 返回内部的实际气泡以便后续填充内容
   return div;
 }
 
