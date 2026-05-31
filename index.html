@@ -316,6 +316,14 @@
       </select>
     </div>
 
+    <div class="toggle-row" id="gemini-2.5-row" style="display: none;">
+      <div class="toggle-desc">
+        <strong>启用 Gemini 2.5</strong><br>
+        <span style="font-size:11px">支持免费API进行联网搜索，但是智商低不推荐使用</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-gemini25"><span class="slider"></span></label>
+    </div>
+
     <div class="modal-row">
       <label>API Key</label>
       <input type="text" id="cfg-apikey" placeholder="输入对应模型的 API Key" oninput="updateTempKey()">
@@ -485,7 +493,8 @@ const DEFAULT_CONFIG = {
   immersive: false,
   foldThinking: true,
   memory: true,
-  enableGreeting: false
+  enableGreeting: false,
+  gemini25: false // 增加 Gemini 2.5 标识
 };
 
 let config = { ...DEFAULT_CONFIG };
@@ -744,10 +753,12 @@ function openSettings() {
   document.getElementById('cfg-memory').checked = config.memory;
   document.getElementById('cfg-greeting').checked = config.enableGreeting;
   document.getElementById('cfg-web-search').checked = !!config.webSearch;
+  document.getElementById('cfg-gemini25').checked = !!config.gemini25; // 初始化开关状态
   
   toggleMemoryUI();
   toggleGreetingUI();
   toggleWebSearchUI();
+  toggleGemini25UI(); // 检查是否展示 Gemini 2.5 专属开关
   document.getElementById('settings-modal').classList.add('active');
 }
 
@@ -767,6 +778,17 @@ function switchEngine() {
   currentEngineInSettings = document.getElementById('cfg-engine').value;
   document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
   toggleWebSearchUI();
+  toggleGemini25UI();
+}
+
+function toggleGemini25UI() {
+  const currentEngine = document.getElementById('cfg-engine').value;
+  const gemini25Row = document.getElementById('gemini-2.5-row');
+  if (currentEngine === 'gemini') {
+    gemini25Row.style.display = 'flex';
+  } else {
+    gemini25Row.style.display = 'none';
+  }
 }
 
 function toggleWebSearchUI() {
@@ -786,6 +808,7 @@ function saveSettings() {
   config.apiKey_gemini = tempKeys.gemini;
   config.apiKey_tavily = tempKeys.tavily;
   config.webSearch = document.getElementById('cfg-web-search').checked;
+  config.gemini25 = document.getElementById('cfg-gemini25').checked; // 保存开关状态
   
   config.nickname = document.getElementById('cfg-nickname').value || 'New Friend';
   config.avatarBase64 = document.getElementById('cfg-avatar').value.trim();
@@ -1742,7 +1765,12 @@ async function fetchDeepSeek(handler, apiKey) {
 }
 
 async function fetchGemini(handler, apiKey) {
-  const model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
+  let model;
+  if (config.gemini25) {
+    model = "gemini-2.5-flash"; // 切换为 2.5 flash
+  } else {
+    model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
+  }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   let contents =[];
@@ -1758,13 +1786,25 @@ async function fetchGemini(handler, apiKey) {
     contents: contents
   };
 
-  if (config.thinking || config.immersive) {
+  // 根据选用的模型配置思考参数
+  if (config.gemini25) {
     payload.generationConfig = {
       thinkingConfig: { 
-        thinkingLevel: "HIGH",
-        includeThoughts: true 
+        // 2.5 Flash 通过 thinkingBudget 控制思考：
+        // 开启思考时分配预算（如2048），不思考时强制设为 0
+        thinkingBudget: (config.thinking || config.immersive) ? 2048 : 0
       }
     };
+  } else {
+    // 3.1 兼容原有逻辑
+    if (config.thinking || config.immersive) {
+      payload.generationConfig = {
+        thinkingConfig: { 
+          thinkingLevel: "HIGH",
+          includeThoughts: true 
+        }
+      };
+    }
   }
 
   if (config.webSearch) {
