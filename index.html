@@ -108,7 +108,6 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      /* object-fit: fill 能够无视原图比例，强制拉伸成设定的36x36大小（1:1），再配合上方圆角截出圆形 */
       object-fit: fill; 
       flex-shrink: 0;
       background: rgba(255, 255, 255, 0.05);
@@ -128,11 +127,9 @@
       word-break: break-word;
       background: var(--bubble);
     }
-    /* 用户消息仍保持独占一行自身动画 */
     .msg.user { margin-left: auto; text-align: left; background: var(--accent); animation: msgSlideIn 0.4s cubic-bezier(0.2, 0.9, 0.4, 1) backwards;}
     .msg.user.no-anim { animation: none; }
     
-    /* AI消息在外层处理动画和对齐，内部满宽 */
     .ai-message-row .msg.ai { max-width: 100%; margin: 0; }
     .ai-message-row .msg.ai.group-follow { border-top-left-radius: 4px; }
 
@@ -140,7 +137,6 @@
     .meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
     .nick { font-weight: 700; color: #fff; display: flex; align-items: center; }
 
-    /* 等待AI回复时的加载动画 */
     .typing-indicator {
       display: flex;
       align-items: center;
@@ -197,7 +193,6 @@
     }
     .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* Markdown 样式 */
     .msg pre { background: #0b0c0d; border-radius: 8px; padding: 36px 12px 12px; margin: 6px 0; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.45; border: 1px solid rgba(255, 255, 255, 0.04); position: relative; }
     .msg code.inline { background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 6px; font-family: ui-monospace, monospace; font-size: 13px; color: #ff7b72; }
     .msg table { border-collapse: collapse; width: 100%; margin: 8px 0; }
@@ -213,7 +208,6 @@
     .copy-btn { background: rgba(255, 255, 255, 0.1); color: #e6eef6; border: none; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
     .lang-badge { color: var(--muted); padding: 4px 6px; font-size: 11px; position: absolute; top: 8px; left: 12px; font-weight: 600; text-transform: uppercase;}
 
-    /* 深度思考 UI */
     .reasoning-box { margin-bottom: 8px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 10px; color: var(--muted); font-size: 13px; line-height: 1.5; overflow: hidden; }
     .reasoning-toggle { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; cursor: pointer; background: rgba(255, 255, 255, 0.01); }
     .reasoning-toggle:hover { background: rgba(255, 255, 255, 0.03); }
@@ -231,7 +225,6 @@
     .reasoning-content pre { background: #0b0c0d; border-radius: 6px; padding: 32px 10px 10px; margin: 6px 0; overflow: auto; font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.04); position: relative;}
     .reasoning-content code.inline { background: rgba(255, 255, 255, 0.05); padding: 2px 4px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 12px; color: #ff7b72; }
 
-    /* 记忆列表和通知 UI */
     .memory-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px; background: #151719; }
     .memory-item { display: flex; gap: 8px; background: rgba(255, 255, 255, 0.03); padding: 8px; border-radius: 6px; align-items: flex-start; }
     .memory-text { flex: 1; font-size: 13px; color: #e6eef6; outline: none; }
@@ -245,7 +238,6 @@
     .memory-notice-header:hover { opacity: 0.8; }
     .memory-notice-details { border-top: 1px solid rgba(0,102,204,0.3); margin-top: 8px; padding-top: 8px; }
 
-    /* Modals */
     .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 200; backdrop-filter: blur(2px); }
     .modal.active { display: flex; }
     .modal-content { background: var(--panel); padding: 20px; border-radius: var(--radius); width: 90%; max-width: 480px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; }
@@ -263,7 +255,6 @@
     .toggle-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
     .toggle-desc { color: var(--muted); font-size: 13px; }
     
-    /* Toggle Switch */
     .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 22px; }
@@ -376,6 +367,19 @@
 
     <div class="toggle-row">
       <div class="toggle-desc">
+        <strong>联网搜索</strong><br>
+        <span style="font-size:11px">启用联网搜索</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="cfg-web-search" onchange="toggleWebSearchUI()"><span class="slider"></span></label>
+    </div>
+
+    <div class="modal-row" id="tavily-apikey-row" style="display: none; margin-top: 4px;">
+      <label>Tavily API Key</label>
+      <input type="text" id="cfg-tavily-apikey" placeholder="输入 Tavily API Key （仅DeepSeek使用）" oninput="updateTempTavilyKey()">
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-desc">
         <strong>记忆功能</strong><br>
         <span style="font-size:11px">允许AI长期记住信息，即使是清除对话后</span>
       </div>
@@ -466,11 +470,13 @@
 
 <script>
 
-//全局配置与状态管理
+// 全局配置与状态管理
 const DEFAULT_CONFIG = {
   engine: 'deepseek',
   apiKey_deepseek: '',
   apiKey_gemini: '',
+  apiKey_tavily: '',
+  webSearch: false,
   nickname: '新朋友',
   avatarBase64: '',
   bio: 'Say hello to your new AI friend',
@@ -483,14 +489,14 @@ const DEFAULT_CONFIG = {
 };
 
 let config = { ...DEFAULT_CONFIG };
-let chatHistory =[]; 
+let chatHistory = []; 
 let memoryDB = [];
-let greetingsDB =[];
-let tempKeys = { deepseek: '', gemini: '' };
+let greetingsDB = [];
+let tempKeys = { deepseek: '', gemini: '', tavily: '' };
 let currentEngineInSettings = 'deepseek';
 let loadingIndicator = null;
-let isAutoScroll = true; // 控制是否自动滑动到底部
-let isUserInteracting = false; // 用于跟踪用户的触摸/干预状态防抽搐
+let isAutoScroll = true; 
+let isUserInteracting = false; 
 
 const markedOptions = {
     gfm: true,
@@ -511,7 +517,55 @@ const sendBtn = document.getElementById('send-btn');
 const uiNickname = document.getElementById('ui-nickname');
 const uiBio = document.getElementById('ui-bio');
 
-// 动态修正由于输入栏高度变化导致的滚动区域内边距
+const searchTool = {
+  type: "function",
+  function: {
+    name: "tavily_search",
+    description: "Search the web for real-time information, news, sports, weather, politics, or any current events.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "The search query to execute with Tavily."
+        }
+      },
+      required: ["query"]
+    }
+  }
+};
+
+async function callTavilySearch(query, apiKey) {
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      query: query,
+      search_depth: "basic",
+      max_results: 5,
+      include_answer: false,
+      include_raw_content: false
+    })
+  });
+  if (!response.ok) {
+    const txt = await response.text();
+    throw new Error(`[${response.status}] ${txt}`);
+  }
+  return await response.json();
+}
+
+function formatTavilyResults(data) {
+  if (!data.results || data.results.length === 0) {
+    return "No search results found.";
+  }
+  return data.results.map((res, i) => {
+    return `[${i+1}] Title: ${res.title}\nURL: ${res.url}\nContent: ${res.content}\n`;
+  }).join("\n");
+}
+
 function updateLayoutPadding() {
   const header = document.querySelector('header');
   const bottom = document.querySelector('.bottom');
@@ -521,7 +575,6 @@ function updateLayoutPadding() {
   }
 }
 
-// 配合软键盘调整实际视口高度，使布局不被覆盖
 function adjustViewport() {
   let vh = window.innerHeight;
   if (window.visualViewport) {
@@ -558,14 +611,12 @@ function init() {
   renderHistory();
   showGreetingIfNeeded();
   
-  // 监听并动态设置视口高度
   adjustViewport();
   window.addEventListener('resize', adjustViewport);
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', adjustViewport);
   }
 
-  // 监听交互事件以判断用户的接管意图，防抽搐
   chatContainer.addEventListener('touchstart', () => { isUserInteracting = true; }, {passive: true});
   chatContainer.addEventListener('touchend', () => { isUserInteracting = false; }, {passive: true});
   chatContainer.addEventListener('touchmove', () => { isUserInteracting = true; }, {passive: true});
@@ -585,17 +636,14 @@ function init() {
     this.style.height = Math.min(this.scrollHeight, 160) + 'px';
     updateLayoutPadding();
     if (isAutoScroll) scrollToBottom(true);
-    else chatContainer.scrollTop = st; // 防跳动
+    else chatContainer.scrollTop = st; 
   });
 
   inputArea.addEventListener('focus', () => {
-    // 处理各种设备的键盘弹起时间差
     setTimeout(() => scrollToBottom(true), 100);
     setTimeout(() => scrollToBottom(true), 300);
   });
 
-  // 移除了默认的 Enter 发送功能，使得回车功能回归普通的换行
-  // 这里添加 Ctrl+Enter 或者 Cmd+Enter 快速发送作为可选补充
   inputArea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -623,7 +671,6 @@ function applyConfigUI() {
   uiBio.innerText = config.bio;
 }
 
-// 弹窗与UI提示交互
 function showAlert(title, msg, onConfirm = null, showCancel = false) {
   document.getElementById('confirm-title').innerText = title;
   document.getElementById('confirm-msg').innerText = msg;
@@ -677,14 +724,15 @@ function closeAlertModal() {
   document.getElementById('alert-modal').classList.remove('active');
 }
 
-// 主设置界面交互
 function openSettings() {
   currentEngineInSettings = config.engine;
   tempKeys.deepseek = config.apiKey_deepseek || '';
   tempKeys.gemini = config.apiKey_gemini || '';
+  tempKeys.tavily = config.apiKey_tavily || '';
 
   document.getElementById('cfg-engine').value = currentEngineInSettings;
   document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
+  document.getElementById('cfg-tavily-apikey').value = tempKeys.tavily;
   
   document.getElementById('cfg-nickname').value = config.nickname;
   document.getElementById('cfg-avatar').value = config.avatarBase64 || '';
@@ -695,9 +743,11 @@ function openSettings() {
   document.getElementById('cfg-fold-thinking').checked = config.foldThinking;
   document.getElementById('cfg-memory').checked = config.memory;
   document.getElementById('cfg-greeting').checked = config.enableGreeting;
+  document.getElementById('cfg-web-search').checked = !!config.webSearch;
   
   toggleMemoryUI();
   toggleGreetingUI();
+  toggleWebSearchUI();
   document.getElementById('settings-modal').classList.add('active');
 }
 
@@ -709,15 +759,33 @@ function updateTempKey() {
   tempKeys[currentEngineInSettings] = document.getElementById('cfg-apikey').value.trim();
 }
 
+function updateTempTavilyKey() {
+  tempKeys.tavily = document.getElementById('cfg-tavily-apikey').value.trim();
+}
+
 function switchEngine() {
   currentEngineInSettings = document.getElementById('cfg-engine').value;
   document.getElementById('cfg-apikey').value = tempKeys[currentEngineInSettings];
+  toggleWebSearchUI();
+}
+
+function toggleWebSearchUI() {
+  const isWebSearchChecked = document.getElementById('cfg-web-search').checked;
+  const currentEngine = document.getElementById('cfg-engine').value;
+  const tavilyRow = document.getElementById('tavily-apikey-row');
+  if (isWebSearchChecked && currentEngine === 'deepseek') {
+    tavilyRow.style.display = 'block';
+  } else {
+    tavilyRow.style.display = 'none';
+  }
 }
 
 function saveSettings() {
   config.engine = document.getElementById('cfg-engine').value;
   config.apiKey_deepseek = tempKeys.deepseek;
   config.apiKey_gemini = tempKeys.gemini;
+  config.apiKey_tavily = tempKeys.tavily;
+  config.webSearch = document.getElementById('cfg-web-search').checked;
   
   config.nickname = document.getElementById('cfg-nickname').value || 'New Friend';
   config.avatarBase64 = document.getElementById('cfg-avatar').value.trim();
@@ -734,7 +802,6 @@ function saveSettings() {
   closeSettings();
 }
 
-// 记忆库与开场白管理 (二级菜单)
 function toggleMemoryUI() {
   const isChecked = document.getElementById('cfg-memory').checked;
   document.getElementById('memory-manage-row').style.display = isChecked ? 'block' : 'none';
@@ -807,7 +874,6 @@ function manualAddGreeting() {
 function deleteGreeting(idx) { greetingsDB.splice(idx, 1); renderGreetingList(); saveToLocal(); }
 function updateGreetingInline(idx, newText) { if(!newText.trim()) { deleteGreeting(idx); return; } greetingsDB[idx] = newText.trim(); saveToLocal(); }
 
-// AI 自动管理记忆解析
 function handleAIMemoryAction(actionStr) {
   let matched = false; let notices = []; let undoActions =[];
   const addRegex = /^[\[【]\s*ADD_MEMORY\s*[:：]\s*["'“”]?([\s\S]*?)["'“”]?\s*[\]】]/i;
@@ -837,12 +903,10 @@ function handleAIMemoryAction(actionStr) {
   return { matched, notices, undoActions };
 }
 
-// UI 渲染与对话处理
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag]));
 }
 
-// 自动滚动判定：如果用户在发生触摸操作，不再强制拉到最底部，防止抽搐
 function scrollToBottom(force = false) {
   if (force || (isAutoScroll && !isUserInteracting)) {
     requestAnimationFrame(() => {
@@ -923,17 +987,14 @@ function appendUserBubble(text, noAnim = false) {
 function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = false) {
   const hasAvatar = !!config.avatarBase64;
   
-  // 外层包裹器
   const row = document.createElement('div');
   row.className = `ai-message-row ${isFollowUp ? 'follow-up' : ''}`;
 
-  // 处理头像占位或渲染
   if (hasAvatar) {
     if (!isFollowUp) {
       const img = document.createElement('img');
       img.className = 'ai-avatar';
       img.src = config.avatarBase64;
-      // 避免无效图片导致显示异常破图样式
       img.onerror = () => { img.style.display = 'none'; };
       row.appendChild(img);
     } else {
@@ -943,7 +1004,6 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
     }
   }
 
-  // 内部气泡内容
   const div = document.createElement('div');
   div.className = `msg ai ${isFollowUp ? 'group-follow' : ''}`;
   
@@ -991,10 +1051,7 @@ function createAIBubble(showMeta = true, initialReasoning = null, isFollowUp = f
     updateBubbleReasoning(div, initialReasoning);
   }
   
-  // 流式或产生过程使用非强制判定，顺应用户此时的滑屏行为
   scrollToBottom(false); 
-  
-  // 返回内部的实际气泡以便后续填充内容
   return div;
 }
 
@@ -1112,13 +1169,16 @@ function setTypingUI(isTyping) {
   }
 }
 
-// Prompt 组装
 function getSystemPrompt() {
   const now = new Date();
   const days =['日','一','二','三','四','五','六'];
   const timeStr = `现在是${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')} 星期${days[now.getDay()]}`;
 
   let prompt = timeStr + "\n\n" + config.personality + "\n\n";
+
+  if (config.webSearch && config.engine === 'deepseek') {
+    prompt += `你可以使用 tavily_search 工具来搜索互联网上的实时信息。当用户询问最近发生的事件、实时新闻、天气、或超出你知识库范围的信息时，请务必调用该工具进行搜索以确保回答的准确性。\n\n`;
+  }
 
   if (config.immersive) {
     prompt += `当你回复信息时，你可以把一段话分成多段发送。
@@ -1145,17 +1205,17 @@ ${memText}
 </memory>
 
 行为准则：
-​不要突兀提出记忆，不合适时禁止使用，可以不使用记忆
+不要突兀提出记忆，不合适时禁止使用，可以不使用记忆
 
 你拥有添加记忆的能力：
-​##十分重要：如果你需要记住什么，请在回复的开头增加一个特殊格式：[ADD_MEMORY:"内容"]
+##十分重要：如果你需要记住什么，请在回复的开头增加一个特殊格式：[ADD_MEMORY:"内容"]
 #该工具为增加记忆
 **禁止对以前的记忆总结或修改后增加，修改只允许用下面的修改记忆，避免记忆零碎**[CHANGE_MEMORY:"内容",NUMBER:"需要修改的记忆的序号"]
 #该工具为更改记忆
 
 ##必须严格按照以上格式进行回复，一旦使用，一定要将标签置于对话最前
 可以从平常和用户的聊天中提取长期有效不会变化的的个人信息记忆
-​禁止记录内容：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。\n\n`;
+禁止记录内容：闲聊、情绪表达、单次问题的答案、时间敏感的琐碎安排。\n\n`;
   }
 
   return prompt;
@@ -1168,9 +1228,11 @@ class NormalStreamHandler {
     this.reasoningText = "";
     this.cursor = 0;
     
-    // 专为 Gemini 设计的思考过程缓冲
     this.geminiReasoningRaw = "";
     this.geminiReasoningCursor = 0;
+    this.geminiSearchQueries = [];
+    this.geminiGroundingChunks = [];
+    this.formattedGeminiSearchChain = "";
     
     this.isFinished = false;
     
@@ -1204,6 +1266,57 @@ class NormalStreamHandler {
     }
   }
 
+  appendGroundingMetadata(metadata) {
+    if (this.engine !== 'gemini' || config.immersive) return;
+    
+    let updated = false;
+    if (metadata.webSearchQueries) {
+      metadata.webSearchQueries.forEach(q => {
+        if (!this.geminiSearchQueries.includes(q)) {
+          this.geminiSearchQueries.push(q);
+          updated = true;
+        }
+      });
+    }
+    if (metadata.groundingChunks) {
+      metadata.groundingChunks.forEach(chunk => {
+        if (chunk.web) {
+          const exists = this.geminiGroundingChunks.some(c => c.uri === chunk.web.uri);
+          if (!exists) {
+            this.geminiGroundingChunks.push({
+              title: chunk.web.title,
+              uri: chunk.web.uri
+            });
+            updated = true;
+          }
+        }
+      });
+    }
+
+    if (updated) {
+      let searchChainText = "";
+      if (this.geminiSearchQueries.length > 0) {
+        searchChainText += `🔍 **搜索查询**: ${this.geminiSearchQueries.map(q => `\`${q}\``).join(', ')}\n\n`;
+      }
+      if (this.geminiGroundingChunks.length > 0) {
+        searchChainText += `📋 **参考网页**:\n`;
+        this.geminiGroundingChunks.forEach((chunk, idx) => {
+          searchChainText += `* [${idx + 1}] [${chunk.title || '网页链接'}](${chunk.uri})\n`;
+        });
+      }
+      
+      this.formattedGeminiSearchChain = searchChainText;
+      
+      if (!this.currentBubble) {
+        removeLoading();
+        this.currentBubble = createAIBubble(true, null);
+      }
+      
+      const fullReasoning = (this.reasoningText ? this.reasoningText + "\n\n" : "") + this.formattedGeminiSearchChain;
+      updateBubbleReasoning(this.currentBubble, fullReasoning);
+    }
+  }
+
   finish() {
     this.isFinished = true;
   }
@@ -1220,7 +1333,9 @@ class NormalStreamHandler {
         removeLoading();
         this.currentBubble = createAIBubble(true, null);
       }
-      updateBubbleReasoning(this.currentBubble, this.reasoningText);
+      
+      const fullReasoning = (this.reasoningText ? this.reasoningText : "") + (this.formattedGeminiSearchChain ? "\n\n" + this.formattedGeminiSearchChain : "");
+      updateBubbleReasoning(this.currentBubble, fullReasoning);
       scrollToBottom(false);
       return; 
     }
@@ -1254,10 +1369,9 @@ class NormalStreamHandler {
 
       let possibleTagMatch = remaining.match(/^[\[【][^\]】]*$/);
       if (possibleTagMatch && !this.isFinished) {
-        return; // 若有以括号开头且未闭合的残余，等待其接收完成
+        return; 
       }
 
-      // 修复死锁：跳过开头的首个括号，以找到正文中的下一个包裹内容，并防止在此被拦截陷入死循环
       let nextBracket = remaining.indexOf('[', 1);
       let nextBracket2 = remaining.indexOf('【', 1);
 
@@ -1306,6 +1420,10 @@ class ImmersiveStreamHandler {
     } else {
       this.rawText += content;
     }
+  }
+
+  appendGroundingMetadata(metadata) {
+    // 沉浸模式下忽略
   }
 
   async finish() {
@@ -1413,7 +1531,6 @@ async function doRequest() {
   }
 }
 
-// API 调用控制
 async function sendMessage() {
   const currentApiKey = config.engine === 'deepseek' ? config.apiKey_deepseek : config.apiKey_gemini;
   if (!currentApiKey) {
@@ -1424,7 +1541,6 @@ async function sendMessage() {
   const text = inputArea.value.trim();
   if (!text) return;
 
-  // 移除现有的重试按钮
   document.querySelectorAll('.retry-box').forEach(el => el.remove());
 
   inputArea.value = '';
@@ -1457,75 +1573,174 @@ function finalizeMessage(rawText, reasoningText, isError = false) {
   }
 }
 
-// DeepSeek API 接入
 async function fetchDeepSeek(handler, apiKey) {
-  const messages =[{ role: 'system', content: getSystemPrompt() }];
+  const tavilyApiKey = config.apiKey_tavily || '';
+  if (config.webSearch && !tavilyApiKey) {
+    throw new Error("请在设置中配置 Tavily API Key 以启用联网搜索功能。");
+  }
+
+  const messages = [{ role: 'system', content: getSystemPrompt() }];
   
   chatHistory.forEach(msg => {
-    messages.push({ role: msg.role, content: msg.content });
+    const item = { role: msg.role, content: msg.content };
+    if (msg.reasoning_content) item.reasoning_content = msg.reasoning_content;
+    if (msg.tool_calls) item.tool_calls = msg.tool_calls;
+    messages.push(item);
   });
 
-  const model = (config.thinking || config.immersive) ? "deepseek-reasoner" : "deepseek-chat";
+  const tools = [searchTool];
 
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
+  while (true) {
+    let accumulatedReasoning = "";
+    let accumulatedContent = "";
+    let accumulatedToolCalls = [];
+
+    const model = (config.thinking || config.immersive) ? "deepseek-reasoner" : "deepseek-chat";
+    const requestBody = {
       model: model,
       messages: messages,
       stream: true
-    })
-  });
+    };
 
-  if (!response.ok) {
-    const errText = await response.text();
-    let errObj;
-    try { errObj = JSON.parse(errText); } catch(e){}
-    const summary = (errObj && errObj.error && errObj.error.message) ? errObj.error.message : errText.slice(0, 100);
-    const errorObj = new Error(`[${response.status}] ${summary}`);
-    errorObj.detail = errText;
-    throw errorObj;
-  }
+    if (config.webSearch) {
+      requestBody.tools = tools;
+    }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    
-    let lines = buffer.split('\n');
-    buffer = lines.pop(); 
+    if (!response.ok) {
+      const errText = await response.text();
+      let errObj;
+      try { errObj = JSON.parse(errText); } catch(e){}
+      const summary = (errObj && errObj.error && errObj.error.message) ? errObj.error.message : errText.slice(0, 100);
+      const errorObj = new Error(`[${response.status}] ${summary}`);
+      errorObj.detail = errText;
+      throw errorObj;
+    }
 
-    for (let line of lines) {
-      if (line.startsWith('data: ')) {
-        const dataStr = line.slice(6).trim();
-        if (dataStr === '[DONE]') continue;
-        try {
-          const json = JSON.parse(dataStr);
-          const delta = json.choices[0].delta;
-          
-          if (delta.reasoning_content) {
-            handler.append(delta.reasoning_content, true);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      
+      let lines = buffer.split('\n');
+      buffer = lines.pop(); 
+
+      for (let line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === '[DONE]') continue;
+          try {
+            const json = JSON.parse(dataStr);
+            const delta = json.choices[0].delta;
+            
+            if (delta.reasoning_content) {
+              accumulatedReasoning += delta.reasoning_content;
+              handler.append(delta.reasoning_content, true);
+            }
+            if (delta.content) {
+              accumulatedContent += delta.content;
+              handler.append(delta.content, false);
+            }
+            if (delta.tool_calls) {
+              delta.tool_calls.forEach(tc => {
+                const idx = tc.index;
+                if (!accumulatedToolCalls[idx]) {
+                  accumulatedToolCalls[idx] = {
+                    id: tc.id || "",
+                    type: tc.type || "function",
+                    function: {
+                      name: tc.function?.name || "",
+                      arguments: tc.function?.arguments || ""
+                    }
+                  };
+                } else {
+                  if (tc.id) accumulatedToolCalls[idx].id = tc.id;
+                  if (tc.type) accumulatedToolCalls[idx].type = tc.type;
+                  if (tc.function?.name) accumulatedToolCalls[idx].function.name += tc.function.name;
+                  if (tc.function?.arguments) accumulatedToolCalls[idx].function.arguments += tc.function.arguments;
+                }
+              });
+            }
+          } catch (e) {
+            console.warn("Parse error on chunk:", line);
           }
-          if (delta.content) {
-            handler.append(delta.content, false);
-          }
-        } catch (e) {
-          console.warn("Parse error on chunk:", line);
         }
       }
+    }
+
+    const finalToolCalls = accumulatedToolCalls.filter(Boolean);
+
+    if (finalToolCalls.length > 0) {
+      const assistantMsg = {
+        role: "assistant",
+        content: accumulatedContent,
+        reasoning_content: accumulatedReasoning,
+        tool_calls: finalToolCalls
+      };
+      messages.push(assistantMsg);
+
+      for (const tool of finalToolCalls) {
+        if (tool.function.name === "tavily_search") {
+          let args;
+          try {
+            args = JSON.parse(tool.function.arguments);
+          } catch (e) {
+            args = { query: tool.function.arguments };
+          }
+          const query = args.query || "";
+
+          if (!config.immersive) {
+            handler.append(`\n\n🔍 **正在搜索**: \`${query}\`...\n`, true);
+          }
+
+          let searchResultStr = "";
+          let searchData;
+          try {
+            searchData = await callTavilySearch(query, tavilyApiKey);
+            searchResultStr = formatTavilyResults(searchData);
+
+            if (!config.immersive) {
+              let resultSummary = `\n✅ **搜索完成**。找到 ${searchData.results?.length || 0} 个结果:\n`;
+              if (searchData.results && searchData.results.length > 0) {
+                searchData.results.forEach((res) => {
+                  resultSummary += `* [${res.title}](${res.url})\n`;
+                });
+              }
+              handler.append(resultSummary, true);
+            }
+          } catch (err) {
+            searchResultStr = `Error calling search tool: ${err.message}`;
+            if (!config.immersive) {
+              handler.append(`\n❌ **搜索失败**: ${err.message}\n`, true);
+            }
+          }
+
+          messages.push({
+            role: "tool",
+            tool_call_id: tool.id,
+            content: searchResultStr
+          });
+        }
+      }
+    } else {
+      break;
     }
   }
   handler.finish();
 }
 
-// Gemini API
 async function fetchGemini(handler, apiKey) {
   const model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -1550,6 +1765,14 @@ async function fetchGemini(handler, apiKey) {
         includeThoughts: true 
       }
     };
+  }
+
+  if (config.webSearch) {
+    payload.tools = [
+      {
+        google_search: {}
+      }
+    ];
   }
 
   const response = await fetch(url, {
@@ -1596,6 +1819,11 @@ async function fetchGemini(handler, apiKey) {
                 }
               }
             });
+          }
+          if (json.candidates && json.candidates[0].groundingMetadata) {
+            if (typeof handler.appendGroundingMetadata === 'function') {
+              handler.appendGroundingMetadata(json.candidates[0].groundingMetadata);
+            }
           }
         } catch (e) {
           console.warn("Parse error on chunk:", line);
