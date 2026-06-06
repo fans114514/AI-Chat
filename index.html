@@ -1200,7 +1200,7 @@ function getSystemPrompt() {
   let prompt = timeStr + "\n\n" + config.personality + "\n\n";
 
   if (config.webSearch && config.engine === 'deepseek') {
-    prompt += `你可以使用 tavily_search 工具来搜索互联网上的实时信息。当用户询问最近发生的事件、实时新闻、天气、或超出你知识库范围的信息时，请务必调用该工具进行搜索以确保回答的准确性。\n\n`;
+    prompt += `你可以使用 tavily_search 工具来搜索互联网上的实时信息。当用户询问包括但不限于最近发生的事件、实时新闻、天气、或超出你知识库范围的信息时，请务必调用该工具进行搜索以确保回答的准确性。知识库已存在，但最近可能更改的东西，也要自行搜索，你认为值得搜索的东西也可以搜索\n\n`;
   }
 
   if (config.immersive) {
@@ -1767,7 +1767,7 @@ async function fetchDeepSeek(handler, apiKey) {
 async function fetchGemini(handler, apiKey) {
   let model;
   if (config.gemini25) {
-    model = "gemini-2.5-flash"; // 切换为 2.5 flash
+    model = "gemini-2.5-flash";
   } else {
     model = (config.thinking || config.immersive) ? "gemini-3-flash-preview" : "gemini-3.1-flash-lite-preview";
   }
